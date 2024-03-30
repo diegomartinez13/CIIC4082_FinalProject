@@ -2,7 +2,7 @@
 .include "header.inc"
 
 .segment "CODE"
-.proc irq_handler ; Interrupt Request,
+.proc irq_handler ; Interrupt Request
   RTI
 .endproc
 
@@ -154,30 +154,157 @@ load_background:    ; Background loading sequence
 	STA PPUADDR
 	STX PPUDATA
 
-  ; Stage 1 Texture
+  ; Stage 1 Textures
   LDA PPUSTATUS
-	LDA #$20
+	LDA #$21
 	STA PPUADDR
-	LDA #$7d
+	LDA #$e8
 	STA PPUADDR
-	LDX #$30
+	LDX #$30       ; wall 1
 	STX PPUDATA
 
-	; finally, attribute table
+  LDA PPUSTATUS
+	LDA #$21
+	STA PPUADDR
+	LDA #$e9
+	STA PPUADDR
+	LDX #$31      ; wall 2
+	STX PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$21
+	STA PPUADDR
+	LDA #$ea
+	STA PPUADDR
+	LDX #$32      ; transparent tile
+	STX PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$21
+	STA PPUADDR
+	LDA #$eb
+	STA PPUADDR
+	LDX #$33      ; background tile
+	STX PPUDATA
+
+  ; Extra block (End Goal block?)
+  LDA PPUSTATUS
+	LDA #$21
+	STA PPUADDR
+	LDA #$ec
+	STA PPUADDR
+	LDX #$34      
+	STX PPUDATA
+
+  ; Stage 2 Textures
+  LDA PPUSTATUS
+	LDA #$22
+	STA PPUADDR
+	LDA #$08
+	STA PPUADDR
+	LDX #$35      ; wall 1
+	STX PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$22
+	STA PPUADDR
+	LDA #$09
+	STA PPUADDR
+	LDX #$36      ; wall 2
+	STX PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$22
+	STA PPUADDR
+	LDA #$0a
+	STA PPUADDR
+	LDX #$37      ; trasnparent tile
+	STX PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$22
+	STA PPUADDR
+	LDA #$0b
+	STA PPUADDR
+	LDX #$38      ; background tile
+	STX PPUDATA
+
+  ; Extra block 2
+  LDA PPUSTATUS
+	LDA #$22
+	STA PPUADDR
+	LDA #$0c
+	STA PPUADDR
+	LDX #$39
+	STX PPUDATA
+
+	; Stage 1 Attributes
 	LDA PPUSTATUS
 	LDA #$23
 	STA PPUADDR
-	LDA #$c2
+	LDA #$da
 	STA PPUADDR
-	LDA #%01000000
+	LDA #%01010101
 	STA PPUDATA
 
+  ; Stage 2 Attributes
 	LDA PPUSTATUS
 	LDA #$23
 	STA PPUADDR
-	LDA #$e0
+	LDA #$e2
 	STA PPUADDR
-	LDA #%00001100
+	LDA #%11111111
+	STA PPUDATA
+
+  ; Extra block 1 attributes
+  LDA PPUSTATUS
+	LDA #$23
+	STA PPUADDR
+	LDA #$db
+	STA PPUADDR
+	LDA #%10101010
+	STA PPUDATA
+
+  ; Extra block 2 attributes
+  LDA PPUSTATUS
+	LDA #$23
+	STA PPUADDR
+	LDA #$e3
+	STA PPUADDR
+	LDA #%10101010
+	STA PPUDATA
+
+  ; Some Particle Attributes for variety
+  LDA PPUSTATUS
+	LDA #$23
+	STA PPUADDR
+	LDA #$cc
+	STA PPUADDR
+	LDA #%01010101
+	STA PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$23
+	STA PPUADDR
+	LDA #$d0
+	STA PPUADDR
+	LDA #%01010101
+	STA PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$23
+	STA PPUADDR
+	LDA #$ed
+	STA PPUADDR
+	LDA #%11111111
+	STA PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$23
+	STA PPUADDR
+	LDA #d5
+	STA PPUADDR
+	LDA #%01010101
 	STA PPUDATA
 
 vblankwait: ; wait for another vblank before continuing
