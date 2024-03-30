@@ -39,7 +39,7 @@ load_sprites:       ; Iterate until all sprites are loaded
   LDA sprites,X
   STA $0200,X
   INX
-  CPX #$70          ; Max X Sprites
+  CPX #$a0          ; Max 160 Sprites
   BNE load_sprites
 
 load_background:    ; Background loading sequence
@@ -117,7 +117,7 @@ load_background:    ; Background loading sequence
 	STA PPUADDR
 	STX PPUDATA
 
-  ; Partidcle cluster
+  ; Particle cluster
 	LDA PPUSTATUS
 	LDA #$20
 	STA PPUADDR
@@ -153,6 +153,17 @@ load_background:    ; Background loading sequence
 	LDA #$7c
 	STA PPUADDR
 	STX PPUDATA
+
+  ; Stage 1 Texture
+  LDA PPUSTATUS
+	LDA #$20
+	STA PPUADDR
+	LDA #$7d
+	STA PPUADDR
+	LDX #$30
+	STX PPUDATA
+
+  
 
 	; finally, attribute table
 	LDA PPUSTATUS
