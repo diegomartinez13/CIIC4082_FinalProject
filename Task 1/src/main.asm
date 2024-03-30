@@ -39,7 +39,7 @@ load_sprites:       ; Iterate until all sprites are loaded
   LDA sprites,X
   STA $0200,X
   INX
-  CPX #$a0          ; Max 160 Sprites
+  CPX #$c0          ; Max 176 Sprites
   BNE load_sprites
 
 load_background:    ; Background loading sequence
@@ -163,8 +163,6 @@ load_background:    ; Background loading sequence
 	LDX #$30
 	STX PPUDATA
 
-  
-
 	; finally, attribute table
 	LDA PPUSTATUS
 	LDA #$23
@@ -237,41 +235,53 @@ sprites:
 .byte $48, $12, $01, $70
 .byte $48, $13, $01, $78
 
-; Walk Up 2
+; Standing Up
 .byte $50, $10, $01, $40
 .byte $50, $11, $01, $48
-.byte $58, $14, $01, $40
-.byte $58, $15, $01, $48
+.byte $58, $28, $01, $40
+.byte $58, $29, $01, $48
+
+; Walk Up 2
+.byte $50, $10, $01, $50
+.byte $50, $11, $01, $58
+.byte $58, $14, $01, $50
+.byte $58, $15, $01, $58
 
 ; Standing left 
-.byte $50, $16, $01, $50
-.byte $50, $17, $01, $58
-.byte $58, $18, $01, $50
-.byte $58, $19, $01, $58
+.byte $50, $16, $01, $60
+.byte $50, $17, $01, $68
+.byte $58, $18, $01, $60
+.byte $58, $19, $01, $68
 
 ; Walk Left 1 (Stepping frame)
-.byte $50, $1a, $01, $60
-.byte $50, $1b, $01, $68
-.byte $58, $1c, $01, $60
-.byte $58, $1d, $01, $68
+.byte $50, $1a, $01, $70
+.byte $50, $1b, $01, $78
+.byte $58, $1c, $01, $70
+.byte $58, $1d, $01, $78
 
 ; Walk Left 2 (Push frame)
-.byte $50, $1e, $01, $70
-.byte $50, $1f, $01, $78
-.byte $58, $20, $01, $70
-.byte $58, $21, $01, $78
+.byte $60, $1e, $01, $40
+.byte $60, $1f, $01, $48
+.byte $68, $20, $01, $40
+.byte $68, $21, $01, $48
 
 ; Walk Down 1 
-.byte $60, $22, $01, $40
-.byte $60, $23, $01, $48
-.byte $68, $24, $01, $40
-.byte $68, $25, $01, $48
-
-; Walk Down 2 
 .byte $60, $22, $01, $50
 .byte $60, $23, $01, $58
-.byte $68, $26, $01, $50
-.byte $68, $27, $01, $58
+.byte $68, $24, $01, $50
+.byte $68, $25, $01, $58
+
+; Walk Down 2 
+.byte $60, $22, $01, $60
+.byte $60, $23, $01, $68
+.byte $68, $26, $01, $60
+.byte $68, $27, $01, $68
+
+; Standing Down
+.byte $60, $22, $01, $70
+.byte $60, $23, $01, $78
+.byte $68, $2a, $01, $70
+.byte $68, $2b, $01, $78
 
 .segment "CHR"
 .incbin "graphics.chr"
