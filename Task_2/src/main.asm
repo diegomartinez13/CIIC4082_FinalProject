@@ -5,23 +5,63 @@
 ;player1 variables 
 player1_x: .res 1
 player1_y: .res 1
+player1_dir: .res 1
+player1_frame_counter: .res 1
+player1_walkstate: .res 1
+
+;player1 sprites
+player1_UL: .res 1
+player1_UR: .res 1
+player1_DL: .res 1
+player1_DR: .res 1
 
 ;player2 variables
 player2_x: .res 1
 player2_y: .res 1
+player2_dir: .res 1
+player2_frame_counter: .res 1
+player2_walkstate: .res 1
+
+;player2 sprites
+player2_UL: .res 1
+player2_UR: .res 1
+player2_DL: .res 1
+player2_DR: .res 1
 
 ;player3 variables
 player3_x: .res 1
 player3_y: .res 1
+player3_dir: .res 1
+player3_frame_counter: .res 1
+player3_walkstate: .res 1
+
+;player3 sprites
+player3_UL: .res 1
+player3_UR: .res 1
+player3_DL: .res 1
+player3_DR: .res 1
 
 ;player4 variables
 player4_x: .res 1
 player4_y:.res 1
+player4_dir: .res 1
+player4_frame_counter: .res 1
+player4_walkstate: .res 1
 
-.exportzp player1_x, player1_y
-.exportzp player2_x, player2_y
-.exportzp player3_x, player3_y
-.exportzp player4_x, player4_y
+;player4 sprites
+player4_UL: .res 1
+player4_UR: .res 1
+player4_DL: .res 1
+player4_DR: .res 1
+
+.exportzp player1_x, player1_y, player1_dir, player1_frame_counter, player1_walkstate
+.exportzp player2_x, player2_y, player2_dir, player2_frame_counter, player2_walkstate
+.exportzp player3_x, player3_y, player3_dir, player3_frame_counter, player3_walkstate
+.exportzp player4_x, player4_y, player4_dir, player4_frame_counter, player4_walkstate
+.exportzp player1_UL, player1_UR, player1_DL, player1_DR
+.exportzp player2_UL, player2_UR, player2_DL, player2_DR
+.exportzp player3_UL, player3_UR, player3_DL, player3_DR
+.exportzp player4_UL, player4_UR, player4_DL, player4_DR
 
 .segment "CODE"
 .proc irq_handler ; Interrupt Request,
@@ -34,7 +74,8 @@ player4_y:.res 1
   LDA #$02
   STA OAMDMA      ; Transfer memory page ($0200-$02ff) to OAM
 
-	JSR draw_players
+	JSR player1_update
+  JSR draw_players
 
 	LDA #$00
 	STA $2005
@@ -82,43 +123,43 @@ forever:
   PHA
 
   ;Player 1: tiles
-  LDA #$08
+  LDA player1_UL
   STA $0201
-  LDA #$09
+  LDA player1_UR
   STA $0205
-  LDA #$0a
+  LDA player1_DL
   STA $0209
-  LDA #$0b
+  LDA player1_DR
   STA $020d
 
   ;Player 2: tiles
-  LDA #$1a
+  LDA player2_UL
   STA $0211
-  LDA #$1b
+  LDA player2_UR
   STA $0215
-  LDA #$1c
+  LDA player2_DL
   STA $0219
-  LDA #$1d
+  LDA player2_DR
   STA $021d
 
   ;Player 3: tiles
-  LDA #$10
+  LDA player3_UL
   STA $0221
-  LDA #$11
+  LDA player3_UR
   STA $0225
-  LDA #$28
+  LDA player3_DL
   STA $0229
-  LDA #$29
+  LDA player3_DR
   STA $022d
 
   ;Player 4: tiles
-  LDA #$22
+  LDA player4_UL
   STA $0231
-  LDA #$23
+  LDA player4_UR
   STA $0235
-  LDA #$2a
+  LDA player4_DL
   STA $0239
-  LDA #$2b
+  LDA player4_DR
   STA $023d
 
   ; write player tile attributes
@@ -265,6 +306,107 @@ forever:
   ADC #$08
   STA $023f
 
+  ;Retrieve values from stack
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+.endproc
+
+.proc player1_update
+  PHP ; Save values on stack
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+  
+  ; checkimg counter for player 1 for smooth animation
+  LDA player1_frame_counter
+  CMP #$08
+  BNE player1_frame_counter_increment
+  ;reset frame counter
+  LDA #$00
+  STA player1_frame_counter
+
+  ;update player 1 walkstate (state machine for player 1 walking animation)
+  LDA player1_walkstate
+  CMP #$00
+  BEQ player1_move_right_step1
+  CMP #$01
+  BEQ player1_move_right_step2
+  CMP #$02
+  BEQ player1_move_right_step3
+  CMP #$03
+  BEQ player1_move_left_step4
+player1_move_right_step1:
+  ;player1 looking right sprites
+  LDA #$04
+  STA player1_UL
+  LDA #$05
+  STA player1_UR
+  LDA #$06
+  STA player1_DL
+  LDA #$07
+  STA player1_DR
+  ;update player 1 walkstate
+  LDA #$01
+  STA player1_walkstate
+  JMP exit_player1_update
+player1_move_right_step2:
+  ;player1 looking right sprites
+  LDA #$08
+  STA player1_UL
+  LDA #$09
+  STA player1_UR
+  LDA #$0a
+  STA player1_DL
+  LDA #$0b
+  STA player1_DR
+  ;update player 1 walkstate
+  LDA #$02
+  STA player1_walkstate
+  JMP exit_player1_update
+player1_move_right_step3:
+  ;player1 looking right sprites
+  LDA #$0c
+  STA player1_UL
+  LDA #$0d
+  STA player1_UR
+  LDA #$0e
+  STA player1_DL
+  LDA #$0f
+  STA player1_DR
+  ;update player 1 walkstate
+  LDA #$03
+  STA player1_walkstate
+  JMP exit_player1_update
+player1_move_left_step4:
+  ;player1 looking right sprites
+  LDA #$08
+  STA player1_UL
+  LDA #$09
+  STA player1_UR
+  LDA #$0a
+  STA player1_DL
+  LDA #$0b
+  STA player1_DR
+  ;update player 1 walkstate
+  LDA #$00
+  STA player1_walkstate
+  JMP exit_player1_update
+
+;increment player 1 frame counter
+player1_frame_counter_increment:
+  LDA player1_frame_counter
+  CLC
+  ADC #$01
+  STA player1_frame_counter
+
+exit_player1_update:
   ;Retrieve values from stack
   PLA
   TAY
