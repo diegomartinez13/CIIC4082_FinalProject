@@ -75,6 +75,9 @@ player4_DR: .res 1
   STA OAMDMA      ; Transfer memory page ($0200-$02ff) to OAM
 
 	JSR player1_update
+  JSR player2_update
+  JSR player3_update
+  JSR player4_update
   JSR draw_players
 
 	LDA #$00
@@ -407,6 +410,314 @@ player1_frame_counter_increment:
   STA player1_frame_counter
 
 exit_player1_update:
+  ;Retrieve values from stack
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+.endproc
+
+.proc player2_update
+  PHP ; Save values on stack
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+  
+  ;Player 2 movement
+  LDA player2_frame_counter
+  CMP #$08
+  BNE player2_frame_counter_increment
+  ;reset frame counter
+  LDA #$00
+  STA player2_frame_counter
+  ;update player 2 direction
+player2_move_left:
+  ;animation player 2 moving left (state machine for player 2 walking animation)
+  LDA player2_walkstate
+  CMP #$00
+  BEQ player2_move_left_step1
+  CMP #$01
+  BEQ player2_move_left_step2
+  CMP #$02
+  BEQ player2_move_left_step3
+  CMP #$03
+  BEQ player2_move_left_step4
+  player2_move_left_step1:
+  ;player2 looking left sprites
+  LDA #$16
+  STA player2_UL
+  LDA #$17
+  STA player2_UR
+  LDA #$18
+  STA player2_DL
+  LDA #$19
+  STA player2_DR
+  ;update player 2 walkstate
+  LDA #$01
+  STA player2_walkstate
+  JMP exit_player2_update
+  player2_move_left_step2:
+  ;player2 looking left sprites
+  LDA #$1a
+  STA player2_UL
+  LDA #$1b
+  STA player2_UR
+  LDA #$1c
+  STA player2_DL
+  LDA #$1d
+  STA player2_DR
+  ;update player 2 walkstate
+  LDA #$02
+  STA player2_walkstate
+  JMP exit_player2_update
+  player2_move_left_step3:
+  ;player2 looking left sprites
+  LDA #$1e
+  STA player2_UL
+  LDA #$1f
+  STA player2_UR
+  LDA #$20
+  STA player2_DL
+  LDA #$21
+  STA player2_DR
+  ;update player 2 walkstate
+  LDA #$03
+  STA player2_walkstate
+  JMP exit_player2_update
+  player2_move_left_step4:
+  ;player2 looking left sprites
+  LDA #$1a
+  STA player2_UL
+  LDA #$1b
+  STA player2_UR
+  LDA #$1c
+  STA player2_DL
+  LDA #$1d
+  STA player2_DR
+  ;update player 2 walkstate
+  LDA #$00
+  STA player2_walkstate
+  JMP exit_player2_update
+
+;increment player 2 frame counter
+player2_frame_counter_increment:
+  LDA player2_frame_counter
+  CLC
+  ADC #$01
+  STA player2_frame_counter
+
+exit_player2_update:
+  ;Retrieve values from stack
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+.endproc
+
+.proc player3_update
+  PHP ; Save values on stack
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+  
+  ;Player 3 movement
+  LDA player3_frame_counter
+  CMP #$08
+  BNE player3_frame_counter_increment
+  ;reset frame counter
+  LDA #$00
+  STA player3_frame_counter
+  ;update player 3 direction
+player3_move_up:
+  ;animation player 3 moving up (state machine for player 3 walking animation)
+  LDA player3_walkstate
+  CMP #$00
+  BEQ player3_move_up_step1
+  CMP #$01
+  BEQ player3_move_up_step2
+  CMP #$02
+  BEQ player3_move_up_step3
+  CMP #$03
+  BEQ player3_move_up_step4
+  player3_move_up_step1:
+  ;player3 looking up sprites
+  LDA #$10
+  STA player3_UL
+  LDA #$11
+  STA player3_UR
+  LDA #$12
+  STA player3_DL
+  LDA #$13
+  STA player3_DR
+  ;update player 3 walkstate
+  LDA #$01
+  STA player3_walkstate
+  JMP exit_player3_update
+  player3_move_up_step2:
+  ;player3 looking up sprites
+  LDA #$10
+  STA player3_UL
+  LDA #$11
+  STA player3_UR
+  LDA #$28
+  STA player3_DL
+  LDA #$29
+  STA player3_DR
+  ;update player 3 walkstate
+  LDA #$02
+  STA player3_walkstate
+  JMP exit_player3_update
+  player3_move_up_step3:
+  ;player3 looking up sprites
+  LDA #$10
+  STA player3_UL
+  LDA #$11
+  STA player3_UR
+  LDA #$14
+  STA player3_DL
+  LDA #$15
+  STA player3_DR
+  ;update player 3 walkstate
+  LDA #$00
+  STA player3_walkstate
+  JMP exit_player3_update
+  player3_move_up_step4:
+  ;player3 looking up sprites
+  LDA #$10
+  STA player3_UL
+  LDA #$11
+  STA player3_UR
+  LDA #$28
+  STA player3_DL
+  LDA #$29
+  STA player3_DR
+
+  ;update player 3 walkstate
+  LDA #$00
+  STA player3_walkstate
+  JMP exit_player3_update
+
+;increment player 3 frame counter
+player3_frame_counter_increment:
+  LDA player3_frame_counter
+  CLC
+  ADC #$01
+  STA player3_frame_counter
+
+exit_player3_update:
+  ;Retrieve values from stack
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+.endproc
+
+.proc player4_update
+  PHP ; Save values on stack
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+  
+  ;Player 4 movement
+  LDA player4_frame_counter
+  CMP #$08
+  BNE player4_frame_counter_increment
+  ;reset frame counter
+  LDA #$00
+  STA player4_frame_counter
+  ;update player 4 direction
+player4_move_down:
+  ;animation player 4 moving down (state machine for player 4 walking animation)
+  LDA player4_walkstate
+  CMP #$00
+  BEQ player4_move_down_step1
+  CMP #$01
+  BEQ player4_move_down_step2
+  CMP #$02
+  BEQ player4_move_down_step3
+  CMP #$03
+  BEQ player4_move_down_step4
+  player4_move_down_step1:
+  ;player4 looking down sprites
+  LDA #$22
+  STA player4_UL
+  LDA #$23
+  STA player4_UR
+  LDA #$24
+  STA player4_DL
+  LDA #$25
+  STA player4_DR
+  ;update player 4 walkstate
+  LDA #$01
+  STA player4_walkstate
+  JMP exit_player4_update
+  player4_move_down_step2:
+  ;player4 looking down sprites
+  LDA #$22
+  STA player4_UL
+  LDA #$23
+  STA player4_UR
+  LDA #$2a
+  STA player4_DL
+  LDA #$2b
+  STA player4_DR
+  ;update player 4 walkstate
+  LDA #$02
+  STA player4_walkstate
+  JMP exit_player4_update
+  player4_move_down_step3:
+  ;player4 looking down sprites
+  LDA #$22
+  STA player4_UL
+  LDA #$23
+  STA player4_UR
+  LDA #$26
+  STA player4_DL
+  LDA #$27
+  STA player4_DR
+  ;update player 4 walkstate
+  LDA #$00
+  STA player4_walkstate
+  JMP exit_player4_update
+  player4_move_down_step4:
+  ;player4 looking down sprites
+  LDA #$22
+  STA player4_UL
+  LDA #$23
+  STA player4_UR
+  LDA #$2a
+  STA player4_DL
+  LDA #$2b
+  STA player4_DR
+
+  ;update player 4 walkstate
+  LDA #$00
+  STA player4_walkstate
+  JMP exit_player4_update
+
+;increment player 4 frame counter
+player4_frame_counter_increment:
+  LDA player4_frame_counter
+  CLC
+  ADC #$01
+  STA player4_frame_counter
+
+exit_player4_update:
   ;Retrieve values from stack
   PLA
   TAY
