@@ -38,13 +38,12 @@ clear_oam:
 vblankwait2:
   BIT PPUSTATUS
   BPL vblankwait2
-  JMP main
 
 ; zero page variables initialization
 ;player 1
-  LDA #$70
+  LDA #$50
   STA player1_x
-  LDA #$40
+  LDA #$80
   STA player1_y
   
   ; LDA #$00
@@ -53,9 +52,9 @@ vblankwait2:
   ; STA player1_walkstate
 
 ;player 2
-  LDA #$80
+  LDA #$60
   STA player2_x
-  LDA #$50
+  LDA #$80
   STA player2_y
 
 ;   LDA #$02
@@ -66,9 +65,9 @@ vblankwait2:
 
 
   ;player 3
-  LDA #$90
+  LDA #$70
   STA player3_x
-  LDA #$60
+  LDA #$80
   STA player3_y
 
 ;   LDA #$03
@@ -77,19 +76,15 @@ vblankwait2:
 ;   STA player3_walkstate
 
   ;player 4
+  LDA #$80
   STA player4_x
-  LDA #$a0
+  LDA #$80
   STA player4_y
-  LDA #$70
   
 ;   STA player4_dir
 ;   LDA #$00
 ;   STA player4_walkstate
 
-;   LDA #$00
-;   STA player1_frame_counter
-;   STA player2_frame_counter
-;   STA player3_frame_counter
-;   STA player4_frame_counter
+
   JMP main
 .endproc
