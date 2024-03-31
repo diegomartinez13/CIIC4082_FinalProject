@@ -3,52 +3,25 @@
 
 .segment "ZEROPAGE"
 ;player1 variables 
-player1_x .res 1
-player1_y .res 1
-player1_dir .res 1
-player1_frame_counter .res 1
-;player1 sprite indexes
-player1_UL .res 1
-player1_UR .res 1
-player1_DL .res 1
-player1_DR .res 1
+player1_x: .res 1
+player1_y: .res 1
 
 ;player2 variables
-player2_x .res 1
-player2_y .res 1
-player2_dir .res 1
-player2_frame_counter .res 1
-;player2 sprite indexes
-player2_UL .res 1
-player2_UR .res 1
-player2_DL .res 1
-player2_DR .res 1
+player2_x: .res 1
+player2_y: .res 1
 
 ;player3 variables
-player3_x .res 1
-player3_y .res 1
-player3_dir .res 1
-player3_frame_counter .res 1
-;player3 sprite indexes
-player3_UL .res 1
-player3_UR .res 1
-player3_DL .res 1
-player3_DR .res 1
+player3_x: .res 1
+player3_y: .res 1
 
 ;player4 variables
-player4_x .res 1
-player4_y .res 1
-player4_dir .res 1
-player4_frame_counter .res 1
-;player4 sprite indexes
-player4_UL .res 1
-player4_UR .res 1
-player4_DL .res 1
-player4_DR .res 1
-.exportzp player1_x, player1_y, player1_dir, player1_frame_counter, player1_UL, player1_UR, player1_DL, player1_DR
-.exportzp player2_x, player2_y, player2_dir, player2_frame_counter, player2_UL, player2_UR, player2_DL, player2_DR
-.exportzp player3_x, player3_y, player3_dir, player3_frame_counter, player3_UL, player3_UR, player3_DL, player3_DR
-.exportzp player4_x, player4_y, player4_dir, player4_frame_counter, player4_UL, player4_UR, player4_DL, player4_DR
+player4_x: .res 1
+player4_y:.res 1
+
+.exportzp player1_x, player1_y
+.exportzp player2_x, player2_y
+.exportzp player3_x, player3_y
+.exportzp player4_x, player4_y
 
 .segment "CODE"
 .proc irq_handler ; Interrupt Request,
@@ -61,11 +34,6 @@ player4_DR .res 1
   LDA #$02
   STA OAMDMA      ; Transfer memory page ($0200-$02ff) to OAM
 
-	;update and draw players
-	JSR player1_update
-	JSR player2_update
-	JSR player3_update
-	JSR player4_update
 	JSR draw_players
 
 	LDA #$00
@@ -114,43 +82,43 @@ forever:
   PHA
 
   ;Player 1: tiles
-  LDA player1_UL
+  LDA #$08
   STA $0201
-  LDA player1_UR
+  LDA #$09
   STA $0205
-  LDA player1_DL
+  LDA #$0a
   STA $0209
-  LDA player1_DR
+  LDA #$0b
   STA $020d
 
   ;Player 2: tiles
-  LDA player2_UL
+  LDA #$1a
   STA $0211
-  LDA player2_UR
+  LDA #$1b
   STA $0215
-  LDA player2_DL
+  LDA #$1c
   STA $0219
-  LDA player2_DR
+  LDA #$1d
   STA $021d
 
   ;Player 3: tiles
-  LDA player3_UL
+  LDA #$10
   STA $0221
-  LDA player3_UR
+  LDA #$11
   STA $0225
-  LDA player3_DL
+  LDA #$28
   STA $0229
-  LDA player3_DR
+  LDA #$29
   STA $022d
 
   ;Player 4: tiles
-  LDA player4_UL
+  LDA #$22
   STA $0231
-  LDA player4_UR
+  LDA #$23
   STA $0235
-  LDA player4_DL
+  LDA #$2a
   STA $0239
-  LDA player4_DR
+  LDA #$2b
   STA $023d
 
   ; write player tile attributes
@@ -323,67 +291,6 @@ palettes:
 .byte $0f, $16, $27, $19    ; black, sunset orange, light orange, green
 .byte $0f, $1c, $2c, $3c    ; black, navy blue, light blue, sky blue
 .byte $0f, $06, $38, $17    ; black, dark red, cream, light brown
-
-sprites:
-; Standing Right
-.byte $40, $04, $01, $40
-.byte $40, $05, $01, $48
-.byte $48, $06, $01, $40
-.byte $48, $07, $01, $48
-
-; Walk Right 1 (Stepping frame)
-.byte $40, $08, $01, $50
-.byte $40, $09, $01, $58
-.byte $48, $0a, $01, $50
-.byte $48, $0b, $01, $58
-
-; Walk Right 2 (Push frame)
-.byte $40, $0c, $01, $60
-.byte $40, $0d, $01, $68
-.byte $48, $0e, $01, $60
-.byte $48, $0f, $01, $68
-
-; Walk Up 1
-.byte $40, $10, $01, $70
-.byte $40, $11, $01, $78
-.byte $48, $12, $01, $70
-.byte $48, $13, $01, $78
-
-; Walk Up 2
-.byte $50, $10, $01, $40
-.byte $50, $11, $01, $48
-.byte $58, $14, $01, $40
-.byte $58, $15, $01, $48
-
-; Standing left 
-.byte $50, $16, $01, $50
-.byte $50, $17, $01, $58
-.byte $58, $18, $01, $50
-.byte $58, $19, $01, $58
-
-; Walk Left 1 (Stepping frame)
-.byte $50, $1a, $01, $60
-.byte $50, $1b, $01, $68
-.byte $58, $1c, $01, $60
-.byte $58, $1d, $01, $68
-
-; Walk Left 2 (Push frame)
-.byte $50, $1e, $01, $70
-.byte $50, $1f, $01, $78
-.byte $58, $20, $01, $70
-.byte $58, $21, $01, $78
-
-; Walk Down 1 
-.byte $60, $22, $01, $40
-.byte $60, $23, $01, $48
-.byte $68, $24, $01, $40
-.byte $68, $25, $01, $48
-
-; Walk Down 2 
-.byte $60, $22, $01, $50
-.byte $60, $23, $01, $58
-.byte $68, $26, $01, $50
-.byte $68, $27, $01, $58
 
 .segment "CHR"
 .incbin "graphics.chr"
