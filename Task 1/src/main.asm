@@ -302,7 +302,7 @@ load_background:    ; Background loading sequence
   LDA PPUSTATUS
 	LDA #$23
 	STA PPUADDR
-	LDA #d5
+	LDA #$d5
 	STA PPUADDR
 	LDA #%01010101
 	STA PPUDATA
