@@ -63,37 +63,6 @@ vblankwait2:
   LDA #$0b
   STA player_DR
 
-  ; ;player looking left
-  ; LDA #$1a
-  ; STA player_L_UL
-  ; LDA #$1b
-  ; STA player2_L_UR
-  ; LDA #$1c
-  ; STA player2_L_DL
-  ; LDA #$1d
-  ; STA player2_L_DR
-
-  ; ;player looking up
-
-  ; LDA #$10
-  ; STA player_U_UL
-  ; LDA #$11
-  ; STA player_U_UR
-  ; LDA #$28
-  ; STA player_U_DL
-  ; LDA #$29
-  ; STA player_U_DR
-
-  ; ;player looking down
-  ; LDA #$22
-  ; STA player_D_UL
-  ; LDA #$23
-  ; STA player_D_UR
-  ; LDA #$2a
-  ; STA player_D_DL
-  ; LDA #$2b
-  ; STA player_D_DR
-
   ;player frame counter (used for animation)
   LDA #$00
   STA player_frame_counter
