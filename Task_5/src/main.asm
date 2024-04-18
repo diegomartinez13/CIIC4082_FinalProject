@@ -18,10 +18,14 @@ player_DR: .res 1
 ;controller variables
 controller: .res 1
 
+;collision variables
+temp_collision: .res 1
+
 
 .exportzp player_x, player_y, player_dir, player_frame_counter, player_walkstate
 .exportzp player_UL, player_UR, player_DL, player_DR
 .exportzp controller
+.exportzp temp_collision
 
 .segment "CODE"
 .proc irq_handler ; Interrupt Request,
@@ -40,8 +44,8 @@ controller: .res 1
   JSR read_controller
 
   ;update player tiles
-	JSR player_update
   JSR draw_player
+	JSR player_update
 
 	LDA #$00
 	STA $2005
@@ -178,26 +182,190 @@ forever:
   AND #BTN_LEFT ; mask out all but the left button
   BEQ check_right ; if the left button is not pressed, check the right button
   ; if the branch not taken, we are moving left
+
+  ;check for collision
+  ;top left corner
+  LDX player_x
+  LDY player_y
+
+  JSR check_collision
+  BEQ not_colliding_top_left ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  INC player_x ; undo the move left
+  JMP check_right ; check the right button  
+
+not_colliding_top_left:
+  ;bottom left corner
+  LDX player_x
+  LDA player_y ; load player y pos into accumulator
+  CLC
+  ADC #$10 ; add 7 to player y pos
+  TAY ; store player y pos in Y register
+
+  JSR check_collision
+  BEQ not_colliding_left ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  INC player_x ; undo the move left
+  JMP check_right ; check the right button
+not_colliding_left:
   JSR player_move_left ; start moving left
   DEC player_x  ; If the branch is not taken, move player left
+
 check_right:
   LDA controller
   AND #BTN_RIGHT
-  BEQ check_up
+  BEQ check_up ; if the right button is not pressed, check the up button
+  ; if the branch is not taken, we are moving right
+
+  ;check for collision
+  LDA player_x ; load player x pos into accumulator
+  CLC
+  ADC #$07 ; add 7 to player x pos
+  TAX ; store player x pos in X register
+  LDA player_y ; load player y pos into accumulator
+  CLC
+  ADC #$01 ; add 1 to player y pos
+  TAY ; store player y pos in Y register
+
+  JSR check_collision
+  BEQ not_colliding_top_right ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  DEC player_x ; undo the move right
+  JMP check_up ; check the up button
+not_colliding_top_right:
+  ;bottom right corner
+  LDA player_x ; load player x pos into accumulator
+  CLC
+  ADC #$07 ; add 7 to player x pos
+  TAX ; store player x pos in X register
+  LDA player_y ; load player y pos into accumulator
+  CLC
+  ADC #$10 ; add 8 to player y pos
+  TAY ; store player y pos in Y register
+
+  JSR check_collision
+  BEQ not_colliding_right ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  DEC player_x ; undo the move right
+  JMP check_up ; check the up button
+not_colliding_right:
   JSR player_move_right
   INC player_x
 check_up:
   LDA controller
   AND #BTN_UP
-  BEQ check_down
+  BEQ check_down ; if the up button is not pressed, check the down button
+  ; if the branch is not taken, we are moving up
+
+  ;check for collision
+  ;up left corner
+  LDX player_x
+  LDA player_y ; load player y pos into accumulator
+  CLC
+  ADC #$01 ; add 1 to player y pos
+  TAY ; store player y pos in Y register
+
+  JSR check_collision
+  BEQ not_colliding_up_left ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  INC player_y ; undo the move up
+  JMP check_down ; check the down button
+not_colliding_up_left:
+  ;up right corner
+  LDA player_x ; load player x pos into accumulator
+  CLC
+  ADC #$07 ; add 7 to player x pos
+  LDA player_y ; load player y pos into accumulator
+  CLC
+  ADC #$01 ; add 1 to player y pos
+  TAY ; store player y pos in Y register
+
+  JSR check_collision
+  BEQ not_colliding_up ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  INC player_y ; undo the move up
+  JMP check_down ; check the down button
+not_colliding_up:
   JSR player_move_up
   DEC player_y
 check_down:
   LDA controller
   AND #BTN_DOWN
-  BEQ done_checking
+  BEQ done_checking ; if the down button is not pressed, we are done checking
+  ; if the branch is not taken, we are moving down
+
+  ;check for collision
+  ;down left corner
+  LDX player_x
+  LDA player_y ; load player y pos into accumulator
+  CLC
+  ADC #$10 ; add 8 to player y pos
+  TAY ; store player y pos in Y register
+
+  JSR check_collision
+  BEQ not_colliding_down_left; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  DEC player_y ; undo the move down
+  JMP done_checking ; done checking
+not_colliding_down_left:
+  ;down right corner
+  LDA player_x ; load player x pos into accumulator
+  CLC
+  ADC #$07 ; add 7 to player x pos
+  TAX ; store player x pos in X register
+  LDA player_y ; load player y pos into accumulator
+  CLC
+  ADC #$10 ; add 8 to player y pos
+  TAY ; store player y pos in Y register
+
+  JSR check_collision
+  BEQ not_colliding_down ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  DEC player_y ; undo the move down
+  JMP done_checking ; done checking
+not_colliding_down:
   JSR player_move_down
   INC player_y
+  JMP done_checking
+
+check_collision:
+  ; check for collisions
+  TXA ; save player x in accumulator (x/64 = tile x)
+  LSR
+  LSR
+  LSR
+  LSR
+  LSR
+  LSR ; X = X / 64
+
+  STA temp_collision ; store player x in temp_collision
+
+  TYA ; save player y in accumulator (y/8 * 4 = tile y)
+  LSR
+  LSR
+  LSR ; Y = Y / 8
+  ASL
+  ASL ; Y = Y * 4
+
+  CLC
+  ADC temp_collision ; X + Y
+  TAY ; store Byte index in Y register
+
+  TXA ; get player x back in accumulator (x/8 AND %0111 = bit mask index)
+  LSR
+  LSR
+  LSR ; X = X / 8
+  AND #%0111 ; X = X AND %0111
+  TAX ; store bit mask index in X register
+
+  LDA CoalitionMap1, Y ; load byte from coalition map
+  AND BitMask, X ; AND byte with bit mask
+
+  RTS ; return from subroutine
+
+
+
+
 done_checking:
   PLA ; Done with updates, restore registers
   TAY ; and return to where we called this
@@ -702,48 +870,48 @@ palettes:
 .byte $0f, $06, $38, $17    ; black, dark red, cream, light brown
 
 CoalitionMap1:
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
 
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
 
-  .db %00011000, %00000000, %00000000, %00000000
-  .db %00011000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00011000, %00000000, %00000000, %00000000
-  .db %00011000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
-  .db %00000000, %00000000, %00000000, %00000000
+  .byte %00011000, %00000000, %00000000, %00000000
+  .byte %00011000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00011000, %00000000, %00000000, %00000000
+  .byte %00011000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000
 
 BitMask:
-  .db %10000000
-  .db %01000000
-  .db %00100000
-  .db %00010000
-  .db %00001000
-  .db %00000100
-  .db %00000010
-  .db %00000001
+  .byte %10000000
+  .byte %01000000
+  .byte %00100000
+  .byte %00010000
+  .byte %00001000
+  .byte %00000100
+  .byte %00000010
+  .byte %00000001
 
 .segment "CHR"
 .incbin "graphics.chr"
