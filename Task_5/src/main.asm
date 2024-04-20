@@ -44,8 +44,8 @@ temp_collision: .res 1
   JSR read_controller
 
   ;update player tiles
-  JSR draw_player
 	JSR player_update
+  JSR draw_player
 
 	LDA #$00
 	STA $2005
@@ -182,55 +182,64 @@ forever:
   AND #BTN_LEFT ; mask out all but the left button
   BEQ check_right ; if the left button is not pressed, check the right button
   ; if the branch not taken, we are moving left
+  DEC player_x  ; move player left
 
   ;check for collision
   ;top left corner
-  LDX player_x
-  LDY player_y
+  LDA player_x
+  SEC
+  SBC #$08 ; move player x 8 to the left
+  TAX 
+  LDA player_y
+  CLC
+  ADC #$01 ; add 1 to player y
+  TAY
 
   JSR check_collision
   BEQ not_colliding_top_left ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
-  INC player_x ; undo the move left
-  JMP check_right ; check the right button  
-
+  INC player_x ; cancel the move left
+  JMP check_right ; check the right button
 not_colliding_top_left:
   ;bottom left corner
-  LDX player_x
+  LDA player_x
+  SEC
+  SBC #$08 ; move player x 8 to the left
+  TAX
   LDA player_y ; load player y pos into accumulator
   CLC
-  ADC #$10 ; add 7 to player y pos
+  ADC #$10 ; add 16 to player y 
   TAY ; store player y pos in Y register
 
   JSR check_collision
   BEQ not_colliding_left ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
-  INC player_x ; undo the move left
+  INC player_x ; cancel the move left
   JMP check_right ; check the right button
 not_colliding_left:
-  JSR player_move_left ; start moving left
-  DEC player_x  ; If the branch is not taken, move player left
+  JSR player_move_left ; start animation moving left
 
 check_right:
   LDA controller
   AND #BTN_RIGHT
   BEQ check_up ; if the right button is not pressed, check the up button
   ; if the branch is not taken, we are moving right
+  INC player_x
 
   ;check for collision
   LDA player_x ; load player x pos into accumulator
   CLC
   ADC #$07 ; add 7 to player x pos
   TAX ; store player x pos in X register
-  LDA player_y ; load player y pos into accumulator
+  LDA player_y
   CLC
-  ADC #$01 ; add 1 to player y pos
-  TAY ; store player y pos in Y register
+  ADC #$01
+  TAY
 
   JSR check_collision
   BEQ not_colliding_top_right ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
-  DEC player_x ; undo the move right
+  DEC player_x ; cancel the move right
   JMP check_up ; check the up button
 not_colliding_top_right:
   ;bottom right corner
@@ -240,74 +249,108 @@ not_colliding_top_right:
   TAX ; store player x pos in X register
   LDA player_y ; load player y pos into accumulator
   CLC
-  ADC #$10 ; add 8 to player y pos
+  ADC #$10 ; add 16 to player y pos
   TAY ; store player y pos in Y register
 
   JSR check_collision
   BEQ not_colliding_right ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
-  DEC player_x ; undo the move right
+  DEC player_x ; cancel the move right
   JMP check_up ; check the up button
 not_colliding_right:
   JSR player_move_right
-  INC player_x
+
 check_up:
   LDA controller
   AND #BTN_UP
   BEQ check_down ; if the up button is not pressed, check the down button
   ; if the branch is not taken, we are moving up
+  DEC player_y ; move player up
 
   ;check for collision
   ;up left corner
-  LDX player_x
-  LDA player_y ; load player y pos into accumulator
+  LDA player_x
+  SEC
+  SBC #$08 ; move player x 8 to the left
+  TAX
+  LDA player_y
   CLC
-  ADC #$01 ; add 1 to player y pos
-  TAY ; store player y pos in Y register
+  ADC #$01
+  TAY
 
   JSR check_collision
   BEQ not_colliding_up_left ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
-  INC player_y ; undo the move up
+  INC player_y ; cancel the move up
   JMP check_down ; check the down button
 not_colliding_up_left:
+  ;up middle
+  LDX player_x
+  LDA player_y
+  CLC
+  ADC #$01
+  TAY
+
+  JSR check_collision
+  BEQ not_colliding_up_middle ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  INC player_y ; cancel the move up
+  JMP check_down ; check the down button
+not_colliding_up_middle:
   ;up right corner
   LDA player_x ; load player x pos into accumulator
   CLC
   ADC #$07 ; add 7 to player x pos
-  LDA player_y ; load player y pos into accumulator
+  LDA player_y
   CLC
-  ADC #$01 ; add 1 to player y pos
-  TAY ; store player y pos in Y register
+  ADC #$01
+  TAY
 
   JSR check_collision
   BEQ not_colliding_up ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
-  INC player_y ; undo the move up
+  INC player_y ; cancel the move up
   JMP check_down ; check the down button
 not_colliding_up:
   JSR player_move_up
-  DEC player_y
+
 check_down:
   LDA controller
   AND #BTN_DOWN
   BEQ done_checking ; if the down button is not pressed, we are done checking
   ; if the branch is not taken, we are moving down
+  INC player_y ; move player down
 
   ;check for collision
   ;down left corner
-  LDX player_x
+  LDA player_x
+  SEC
+  SBC #$08 ; move player x 8 to the left
+  TAX
   LDA player_y ; load player y pos into accumulator
   CLC
-  ADC #$10 ; add 8 to player y pos
+  ADC #$10 ; add 16 to player y pos
   TAY ; store player y pos in Y register
 
   JSR check_collision
   BEQ not_colliding_down_left; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
-  DEC player_y ; undo the move down
+  DEC player_y ; cancel the move down
   JMP done_checking ; done checking
 not_colliding_down_left:
+  ;down middle
+  LDX player_x
+  LDA player_y ; load player y pos into accumulator
+  CLC
+  ADC #$10 ; add 16 to player y pos
+  TAY ; store player y pos in Y register
+
+  JSR check_collision
+  BEQ not_colliding_down_middle ; if the branch is taken, we are not colliding
+  ; if the branch is not taken, we are colliding
+  DEC player_y ; cancel the move down
+  JMP done_checking ; done checking
+not_colliding_down_middle:
   ;down right corner
   LDA player_x ; load player x pos into accumulator
   CLC
@@ -315,17 +358,16 @@ not_colliding_down_left:
   TAX ; store player x pos in X register
   LDA player_y ; load player y pos into accumulator
   CLC
-  ADC #$10 ; add 8 to player y pos
+  ADC #$10 ; add 16 to player y pos
   TAY ; store player y pos in Y register
 
   JSR check_collision
   BEQ not_colliding_down ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
-  DEC player_y ; undo the move down
+  DEC player_y ; cancel the move down
   JMP done_checking ; done checking
 not_colliding_down:
   JSR player_move_down
-  INC player_y
   JMP done_checking
 
 check_collision:
@@ -358,8 +400,8 @@ check_collision:
   AND #%0111 ; X = X AND %0111
   TAX ; store bit mask index in X register
 
-  LDA CoalitionMap1, Y ; load byte from coalition map
-  AND BitMask, X ; AND byte with bit mask
+  LDA CoalitionMap1, y ; load byte from coalition map
+  AND BitMask, x ; AND byte with bit mask
 
   RTS ; return from subroutine
 
