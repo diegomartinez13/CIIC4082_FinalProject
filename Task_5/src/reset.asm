@@ -4,6 +4,7 @@
 .importzp player_x, player_y, player_walkstate, player_frame_counter, player_dir
 .importzp player_UL, player_UR, player_DL, player_DR
 .importzp controller
+.importzp nametabe_select
 
 .segment "CODE"
 .import main
@@ -42,7 +43,7 @@ vblankwait2:
   ;player position
   LDA #$10
   STA player_x
-  LDA #$d0
+  LDA #$cF
   STA player_y
   
   ;player direction
@@ -66,6 +67,10 @@ vblankwait2:
   ;player frame counter (used for animation)
   LDA #$00
   STA player_frame_counter
+
+  ;nametable select
+  LDA #$00
+  STA nametabe_select
 
   JMP main
 .endproc

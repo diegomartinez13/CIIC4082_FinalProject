@@ -22,10 +22,19 @@ controller: .res 1
 temp_collision: .res 1
 
 
+;nametable variables
+nametabe_select: .res 1
+
+;scroll
+scroll: .res 1
+ppuctrl_settings: .res 1
+
+sleeping: .res 1
 .exportzp player_x, player_y, player_dir, player_frame_counter, player_walkstate
 .exportzp player_UL, player_UR, player_DL, player_DR
 .exportzp controller
-.exportzp temp_collision
+.exportzp temp_collision, nametabe_select
+.exportzp scroll, ppuctrl_settings
 
 .segment "CODE"
 .proc irq_handler ; Interrupt Request,
@@ -35,28 +44,52 @@ temp_collision: .res 1
 .import read_controller
 
 .proc nmi_handler ; Non-Maskable Interrupt,
-  LDA #$00        
-  STA OAMADDR     ; Prep OAM for memory transfer at byte 0
-  LDA #$02
-  STA OAMDMA      ; Transfer memory page ($0200-$02ff) to OAM
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
 
-  ;read controller input
-  JSR read_controller
+  ;copy sprite data to OAM
+  LDA #$00 ; Load the accumulator with the hex value $00
+  STA OAMADDR ; Set OAM address to $00. store the accumulator in the memory location $2003
+  LDA #$02 ; Load the accumulator with the hex value $02
+  STA OAMDMA ; This tells the PPU to initiate a high-speed transfer of the 256 bytes from $0200-$02ff into OAM
+  
+  ;set PPUCTRL
+  LDA ppuctrl_settings
+  STA PPUCTRL
 
-  ;update player tiles
-	JSR player_update
-  JSR draw_player
+  ;set scroll values
+  LDA scroll ; X scroll first
+  STA PPUSCROLL
+  LDA #$00 ; Y scroll
+  STA PPUSCROLL
 
-	LDA #$00
-	STA $2005
-	STA $2005
-  RTI
+  ;all done
+  LDA #$00
+  STA sleeping
+
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTI ; Return from interrupt
 .endproc
 
 .import reset_handler
 
 .export main
 .proc main
+  LDA #$00  ; NES screen is 256 pixels wide (0-255)
+  STA scroll
+
+  LDA #$00
+  STA nametabe_select
+
   LDX PPUSTATUS
   LDX #$3f
   STX PPUADDR
@@ -156,17 +189,117 @@ load_background:
 	LDA #%11111111
 	STA PPUDATA
 
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    ; Stage 1 Textures
+  LDA PPUSTATUS
+	LDA #$24
+	STA PPUADDR
+	LDA #$04
+	STA PPUADDR
+	LDX #$30       ; wall 1
+	STX PPUDATA
+  ; Stage 1 Textures
+  LDA PPUSTATUS
+	LDA #$24
+	STA PPUADDR
+	LDA #$24
+	STA PPUADDR
+	LDX #$30       ; wall 1
+	STX PPUDATA
+  ; Stage 1 Textures
+  LDA PPUSTATUS
+	LDA #$24
+	STA PPUADDR
+	LDA #$05
+	STA PPUADDR
+	LDX #$30       ; wall 1
+	STX PPUDATA
+  ; Stage 1 Textures
+  LDA PPUSTATUS
+	LDA #$24
+	STA PPUADDR
+	LDA #$25
+	STA PPUADDR
+	LDX #$30       ; wall 1
+	STX PPUDATA
+
+
+
+  LDA PPUSTATUS
+	LDA #$27
+	STA PPUADDR
+	LDA #$84
+	STA PPUADDR
+	LDX #$31      ; wall 2
+	STX PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$27
+	STA PPUADDR
+	LDA #$a4
+	STA PPUADDR
+	LDX #$31      ; wall 2
+	STX PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$27
+	STA PPUADDR
+	LDA #$85
+	STA PPUADDR
+	LDX #$31      ; wall 2
+	STX PPUDATA
+
+  LDA PPUSTATUS
+	LDA #$27
+	STA PPUADDR
+	LDA #$a5
+	STA PPUADDR
+	LDX #$31      ; wall 2
+	STX PPUDATA
+
+  ; Stage 1 Attributes
+	LDA PPUSTATUS
+	LDA #$27
+	STA PPUADDR
+	LDA #$f1
+	STA PPUADDR
+	LDA #%01010101
+	STA PPUDATA
+
+  ; Stage 2 Attributes
+	LDA PPUSTATUS
+	LDA #$27
+	STA PPUADDR
+	LDA #$e9
+	STA PPUADDR
+	LDA #%11111111
+	STA PPUDATA
+
 vblankwait: ; wait for another vblank before continuing
   BIT PPUSTATUS
   BPL vblankwait
 
   LDA #%10010000  ; turn on NMIs, sprites use first pattern table
+    STA ppuctrl_settings
   STA PPUCTRL
   LDA #%00011110  ; turn on screen
   STA PPUMASK
 
-forever:
-  JMP forever
+  mainloop:
+    JSR read_controller ; Read the controller
+
+    ;update tiles after the DMA transfer
+    JSR player_update
+    JSR draw_player
+
+  update_sleep:
+    INC sleeping
+    sleep:
+      LDA sleeping
+      BNE sleep
+
+      JMP mainloop
 .endproc
 
 .proc player_update
@@ -177,19 +310,25 @@ forever:
   TYA
   PHA
 
-  ; check if player is moving
+  ; check if player is moving left
   LDA controller ; load controller input
   AND #BTN_LEFT ; mask out all but the left button
   BEQ check_right ; if the left button is not pressed, check the right button
   ; if the branch not taken, we are moving left
-  DEC player_x  ; move player left
+  LDA player_x ; load player x pos into accumulator
+  SEC
+  SBC #$01 ; subtract 1 from player x
+  STA player_x ; store player x pos back into memory
 
+  BCC change_nametable0
+  JMP no_change_nametable0
+change_nametable0:
+  LDA #$00
+  STA nametabe_select
+no_change_nametable0:
   ;check for collision
   ;top left corner
-  LDA player_x
-  SEC
-  SBC #$08 ; move player x 8 to the left
-  TAX 
+  LDX player_x
   LDA player_y
   CLC
   ADC #$01 ; add 1 to player y
@@ -202,10 +341,7 @@ forever:
   JMP check_right ; check the right button
 not_colliding_top_left:
   ;bottom left corner
-  LDA player_x
-  SEC
-  SBC #$08 ; move player x 8 to the left
-  TAX
+  LDX player_x
   LDA player_y ; load player y pos into accumulator
   CLC
   ADC #$10 ; add 16 to player y 
@@ -215,8 +351,19 @@ not_colliding_top_left:
   BEQ not_colliding_left ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   INC player_x ; cancel the move left
-  JMP check_right ; check the right button
+  BEQ check_right ; check the right button
 not_colliding_left:
+  ; LDA scroll
+  ; CMP #$00
+  ; BEQ check_right
+  DEC scroll ; move the screen to the right
+  ; DEC scroll ; move the screen to the right
+  ; DEC scroll ; move the screen to the right
+  ; DEC scroll ; move the screen to the right
+  ; DEC scroll ; move the screen to the right
+  ; DEC scroll ; move the screen to the right
+  ; DEC scroll ; move the screen to the right
+  ; DEC scroll ; move the screen to the right
   JSR player_move_left ; start animation moving left
 
 check_right:
@@ -224,13 +371,24 @@ check_right:
   AND #BTN_RIGHT
   BEQ check_up ; if the right button is not pressed, check the up button
   ; if the branch is not taken, we are moving right
-  INC player_x
+  LDA player_x
+  CLC
+  ADC #$01
+  STA player_x
+  
+  BCS change_nametable1
+  JMP no_change_nametable1
 
+change_nametable1:
+  LDA #$01
+  STA nametabe_select
+no_change_nametable1:
   ;check for collision
   LDA player_x ; load player x pos into accumulator
   CLC
-  ADC #$07 ; add 7 to player x pos
+  ADC #$0F ; add 7 to player x pos
   TAX ; store player x pos in X register
+
   LDA player_y
   CLC
   ADC #$01
@@ -245,7 +403,7 @@ not_colliding_top_right:
   ;bottom right corner
   LDA player_x ; load player x pos into accumulator
   CLC
-  ADC #$07 ; add 7 to player x pos
+  ADC #$0F ; add 15 to player x pos
   TAX ; store player x pos in X register
   LDA player_y ; load player y pos into accumulator
   CLC
@@ -256,8 +414,19 @@ not_colliding_top_right:
   BEQ not_colliding_right ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   DEC player_x ; cancel the move right
-  JMP check_up ; check the up button
+  BEQ check_up ; check the up button
 not_colliding_right:
+  LDA scroll
+  CMP #$FF
+  BEQ check_up
+  INC scroll ; move the screen to the left
+  ; INC scroll ; move the screen to the left
+  ; INC scroll ; move the screen to the left
+  ; INC scroll ; move the screen to the left
+  ; INC scroll ; move the screen to the left
+  ; INC scroll ; move the screen to the left
+  ; INC scroll ; move the screen to the left
+  ; INC scroll ; move the screen to the left
   JSR player_move_right
 
 check_up:
@@ -269,10 +438,7 @@ check_up:
 
   ;check for collision
   ;up left corner
-  LDA player_x
-  SEC
-  SBC #$08 ; move player x 8 to the left
-  TAX
+  LDX player_x
   LDA player_y
   CLC
   ADC #$01
@@ -284,23 +450,11 @@ check_up:
   INC player_y ; cancel the move up
   JMP check_down ; check the down button
 not_colliding_up_left:
-  ;up middle
-  LDX player_x
-  LDA player_y
-  CLC
-  ADC #$01
-  TAY
-
-  JSR check_collision
-  BEQ not_colliding_up_middle ; if the branch is taken, we are not colliding
-  ; if the branch is not taken, we are colliding
-  INC player_y ; cancel the move up
-  JMP check_down ; check the down button
-not_colliding_up_middle:
   ;up right corner
   LDA player_x ; load player x pos into accumulator
   CLC
-  ADC #$07 ; add 7 to player x pos
+  ADC #$0F; add 7 to player x pos
+  TAX
   LDA player_y
   CLC
   ADC #$01
@@ -323,10 +477,7 @@ check_down:
 
   ;check for collision
   ;down left corner
-  LDA player_x
-  SEC
-  SBC #$08 ; move player x 8 to the left
-  TAX
+  LDX player_x
   LDA player_y ; load player y pos into accumulator
   CLC
   ADC #$10 ; add 16 to player y pos
@@ -338,23 +489,10 @@ check_down:
   DEC player_y ; cancel the move down
   JMP done_checking ; done checking
 not_colliding_down_left:
-  ;down middle
-  LDX player_x
-  LDA player_y ; load player y pos into accumulator
-  CLC
-  ADC #$10 ; add 16 to player y pos
-  TAY ; store player y pos in Y register
-
-  JSR check_collision
-  BEQ not_colliding_down_middle ; if the branch is taken, we are not colliding
-  ; if the branch is not taken, we are colliding
-  DEC player_y ; cancel the move down
-  JMP done_checking ; done checking
-not_colliding_down_middle:
   ;down right corner
   LDA player_x ; load player x pos into accumulator
   CLC
-  ADC #$07 ; add 7 to player x pos
+  ADC #$0F ; add 7 to player x pos
   TAX ; store player x pos in X register
   LDA player_y ; load player y pos into accumulator
   CLC
@@ -369,7 +507,17 @@ not_colliding_down_middle:
 not_colliding_down:
   JSR player_move_down
   JMP done_checking
+done_checking:
+  PLA ; Done with updates, restore registers
+  TAY ; and return to where we called this
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+.endproc
 
+.proc check_collision
 check_collision:
   ; check for collisions
   TXA ; save player x in accumulator (x/64 = tile x)
@@ -400,22 +548,17 @@ check_collision:
   AND #%0111 ; X = X AND %0111
   TAX ; store bit mask index in X register
 
-  LDA CoalitionMap1, y ; load byte from coalition map
+  LDA nametabe_select
+  CMP #$01
+  BEQ check_collision_map2
+
+  LDA CollitionMap1, Y ; load byte from coalition map
   AND BitMask, x ; AND byte with bit mask
-
   RTS ; return from subroutine
-
-
-
-
-done_checking:
-  PLA ; Done with updates, restore registers
-  TAY ; and return to where we called this
-  PLA
-  TAX
-  PLA
-  PLP
-  RTS
+  check_collision_map2:
+  LDA CollitionMap2, y ; load byte from coalition map
+  AND BitMask, x ; AND byte with bit mask
+  RTS ; return from subroutine
 .endproc
 
 .proc draw_player
@@ -911,39 +1054,76 @@ palettes:
 .byte $0f, $1c, $2c, $3c    ; black, navy blue, light blue, sky blue
 .byte $0f, $06, $38, $17    ; black, dark red, cream, light brown
 
-CoalitionMap1:
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
+CollitionMap1:
+  .byte %11111111, %11111111, %11111111, %11111111 ;0
+  .byte %11111111, %11111111, %11111111, %11111111 ;1
+  .byte %11111111, %11111111, %11111111, %11111111 ;2
+  .byte %11111111, %11111111, %11111111, %11111111 ;3
+  .byte %11000000, %00000000, %11111111, %00000011 ;4
+  .byte %11000000, %00000000, %11111111, %00000011 ;5
+  .byte %11001111, %11110000, %00110000, %00110011 ;6
+  .byte %11001111, %11110000, %00110000, %00110011 ;7
+  .byte %11000000, %00001100, %00110000, %11000011 ;8
+  .byte %11000000, %00001100, %00110000, %11000011 ;9
 
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %11001111, %00111100, %00110000, %11001111 ;10
+  .byte %11001111, %00111100, %00110000, %11001111 ;11
+  .byte %11000011, %00001100, %00000000, %11001111 ;12
+  .byte %11000011, %00001100, %00000000, %11001111 ;13
+  .byte %11111111, %11000000, %00110000, %11000000 ;14
+  .byte %11111111, %11000000, %00110000, %11000000 ;15
+  .byte %11000000, %00000011, %00111100, %11111111 ;16
+  .byte %11000000, %00000011, %00111100, %11111111 ;17
+  .byte %11001100, %11000011, %00111100, %00000011 ;18
+  .byte %11001100, %11000011, %00111100, %00000011 ;19
 
-  .byte %00011000, %00000000, %00000000, %00000000
-  .byte %00011000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00011000, %00000000, %00000000, %00000000
-  .byte %00011000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
-  .byte %00000000, %00000000, %00000000, %00000000
+  .byte %11001100, %11000011, %00111111, %11110011 ;20
+  .byte %11001100, %11110011, %00111111, %11110011 ;21
+  .byte %11001100, %11110011, %00111111, %11110011 ;22
+  .byte %11001100, %11110011, %00111111, %11110011 ;23
+  .byte %11001111, %11000011, %00111111, %11110011 ;24
+  .byte %11001111, %11000011, %00000011, %11110011 ;25
+  .byte %11000000, %00000011, %00000000, %00000011 ;26
+  .byte %11000000, %00000011, %11110000, %00000011 ;27
+  .byte %11111111, %11111111, %11111111, %11111111 ;28
+  .byte %11111111, %11111111, %11111111, %11111111 ;29
+
+
+CollitionMap2:
+  .byte %11111111, %11111111, %11111111, %11111111 ;0
+  .byte %11111111, %11111111, %11111111, %11111111 ;1
+  .byte %11111111, %11111111, %11111111, %11111111 ;2
+  .byte %11111111, %11111111, %11111111, %11111111 ;3
+  .byte %11000000, %00001111, %11111100, %00000011
+  .byte %11000000, %00001111, %11111100, %00000011
+  .byte %11111111, %11000000, %00111100, %00000000
+  .byte %11111111, %11000000, %00111100, %00000000
+  .byte %11000000, %00001111, %00111100, %00000011
+  .byte %11000000, %00001111, %00111100, %00000011
+
+  .byte %11001111, %11001111, %00111111, %11000011
+  .byte %11001111, %11001111, %00111111, %11000011
+  .byte %11001100, %00001111, %00000011, %11110011
+  .byte %11001100, %00001111, %00000011, %11110011
+  .byte %00000000, %11111111, %00111100, %00000011
+  .byte %00000000, %11111111, %00111100, %00000011
+  .byte %11001100, %00000000, %00111100, %00110011
+  .byte %11001100, %00000000, %00111100, %00110011
+  .byte %11001111, %11000000, %00001100, %11110011
+  .byte %11001111, %11000000, %00001100, %11110011
+
+  .byte %11000000, %11000011, %11001111, %11000011
+  .byte %11000000, %11000011, %11001111, %11000011
+  .byte %11001100, %11001111, %11000000, %00000011
+  .byte %11001100, %11001111, %11000000, %00000011
+  .byte %11001100, %00000000, %11001100, %11111111
+  .byte %11001100, %00000000, %11001100, %11111111
+  .byte %11001100, %11111100, %11000000, %00001111
+  .byte %11001100, %11111100, %11000000, %00001111
+  .byte %11111111, %11111111, %11111111, %11111111
+  .byte %11111111, %11111111, %11111111, %11111111
+
+
 
 BitMask:
   .byte %10000000
