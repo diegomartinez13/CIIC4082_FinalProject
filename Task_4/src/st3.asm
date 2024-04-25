@@ -64,7 +64,7 @@
   END:
 	LDX #$00
 	LDA PPUSTATUS    ; Reset the address latch
-	LDA #$24         ; High byte of $23C0
+	LDA #$27         ; High byte of $23C0
 	STA PPUADDR
 	LDA #$C0         ; Low byte of $23C0
 	STA PPUADDR
