@@ -1,8 +1,6 @@
 .include "constants.inc"
 
 .segment "ZEROPAGE"
-.importzp player_x, player_y, player_walkstate, player_frame_counter, player_dir
-.importzp player_UL, player_UR, player_DL, player_DR
 .importzp controller
 
 .segment "CODE"
@@ -38,6 +36,7 @@ vblankwait2:
   BIT PPUSTATUS
   BPL vblankwait2
 
+<<<<<<< HEAD
 ; zero page variables initialization
   ;player position
   LDA #$50
@@ -67,5 +66,7 @@ vblankwait2:
   LDA #$00
   STA player_frame_counter
 
+=======
+>>>>>>> ced1dcf (Unfinished task 4)
   JMP main
 .endproc
