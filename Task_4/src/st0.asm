@@ -132,51 +132,44 @@ decode0:
 
 is_empty:
   LDA #$30
-  JSR print
-  RTS
+  JMP print
 is_wall:
   LDA #$30
-  JSR print
-  RTS
+  JMP print
 is_transparent:
   LDA #$32
-  JSR print
-  RTS
+  JMP print
 is_block:
   LDA #$33
-  JSR print
-  RTS
+  JMP print
 
-print: 
-  STA PPUDATA
-  LDY nxtblk
-  STY curtile
-  INY
-  STA PPUDATA
-  INY
-  STY nxtblk
+print:
+  STA PPUDATA          ; Print the first byte of the tile
+  LDY nxtblk           ; Load the next block to be processed
+  STY curtile          ; Store the current tile
+  INY                  ; Increment to get the address of the next tile
+  STA PPUDATA          ; Print the second byte of the tile
+  INY                  ; Increment to move to the next byte of the next tile
+  STY nxtblk           ; Store the next block to be processed
 
-  LDY addrhi
-  STY PPUADDR
-  LDY curtile
-  STA temp
+  LDY addrhi           ; Load the high byte of the address
   CLC
-  TYA
-  ADC #32
+  ADC #32              ; Increment it by 32 (since each row has 32 tiles)
   TAY
-  STY PPUADDR
-  LDA temp
-  
-  STY PPUADDR
+  STY PPUADDR          ; Store the updated high byte of the address
 
-  STA PPUDATA
-  STA PPUDATA
+  LDA curtile          ; Load the current tile index
+  STA temp             ; Store it temporarily
+  STY PPUADDR          ; Store the high byte of the address
+  LDY temp             ; Reload the current tile index
+  STA PPUDATA          ; Print the first byte of the next tile
+  STA PPUDATA          ; Print the second byte of the next tile
 
-  LDY addrhi
-  STY PPUADDR
-  LDY nxtblk
-  STY PPUADDR
-  RTS
+  LDY addrhi           ; Load the high byte of the address again
+  STY PPUADDR          ; Store it
+  LDY nxtblk           ; Load the next block to be processed again
+  STY PPUADDR          ; Store it
+  RTS                  ; Return from the subroutine
 
 exit:
   RTS
