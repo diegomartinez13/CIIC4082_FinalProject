@@ -19,11 +19,14 @@ player_DR: .res 1
 controller: .res 1
 
 ;collision variables
+temp_collision_x: .res 1
+temp_collision_y: .res 1
 temp_collision: .res 1
 
 
 ;nametable variables
 nametabe_select: .res 1
+level_select: .res 1
 
 ;scroll
 scroll: .res 1
@@ -33,7 +36,7 @@ sleeping: .res 1
 .exportzp player_x, player_y, player_dir, player_frame_counter, player_walkstate
 .exportzp player_UL, player_UR, player_DL, player_DR
 .exportzp controller
-.exportzp temp_collision, nametabe_select
+.exportzp nametabe_select, level_select
 .exportzp scroll, ppuctrl_settings
 
 .segment "CODE"
@@ -335,7 +338,7 @@ no_change_nametable0:
   TAY
 
   JSR check_collision
-  BEQ not_colliding_top_left ; if the branch is taken, we are not colliding
+  BNE not_colliding_top_left ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   INC player_x ; cancel the move left
   JMP check_right ; check the right button
@@ -348,22 +351,15 @@ not_colliding_top_left:
   TAY ; store player y pos in Y register
 
   JSR check_collision
-  BEQ not_colliding_left ; if the branch is taken, we are not colliding
+  BNE not_colliding_left ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   INC player_x ; cancel the move left
   BEQ check_right ; check the right button
 not_colliding_left:
-  ; LDA scroll
-  ; CMP #$00
-  ; BEQ check_right
+  LDA scroll
+  CMP #$00
+  BEQ check_right
   DEC scroll ; move the screen to the right
-  ; DEC scroll ; move the screen to the right
-  ; DEC scroll ; move the screen to the right
-  ; DEC scroll ; move the screen to the right
-  ; DEC scroll ; move the screen to the right
-  ; DEC scroll ; move the screen to the right
-  ; DEC scroll ; move the screen to the right
-  ; DEC scroll ; move the screen to the right
   JSR player_move_left ; start animation moving left
 
 check_right:
@@ -395,7 +391,7 @@ no_change_nametable1:
   TAY
 
   JSR check_collision
-  BEQ not_colliding_top_right ; if the branch is taken, we are not colliding
+  BNE not_colliding_top_right ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   DEC player_x ; cancel the move right
   JMP check_up ; check the up button
@@ -411,7 +407,7 @@ not_colliding_top_right:
   TAY ; store player y pos in Y register
 
   JSR check_collision
-  BEQ not_colliding_right ; if the branch is taken, we are not colliding
+  BNE not_colliding_right ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   DEC player_x ; cancel the move right
   BEQ check_up ; check the up button
@@ -420,13 +416,6 @@ not_colliding_right:
   CMP #$FF
   BEQ check_up
   INC scroll ; move the screen to the left
-  ; INC scroll ; move the screen to the left
-  ; INC scroll ; move the screen to the left
-  ; INC scroll ; move the screen to the left
-  ; INC scroll ; move the screen to the left
-  ; INC scroll ; move the screen to the left
-  ; INC scroll ; move the screen to the left
-  ; INC scroll ; move the screen to the left
   JSR player_move_right
 
 check_up:
@@ -445,7 +434,7 @@ check_up:
   TAY
 
   JSR check_collision
-  BEQ not_colliding_up_left ; if the branch is taken, we are not colliding
+  BNE not_colliding_up_left ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   INC player_y ; cancel the move up
   JMP check_down ; check the down button
@@ -461,7 +450,7 @@ not_colliding_up_left:
   TAY
 
   JSR check_collision
-  BEQ not_colliding_up ; if the branch is taken, we are not colliding
+  BNE not_colliding_up ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   INC player_y ; cancel the move up
   JMP check_down ; check the down button
@@ -484,7 +473,7 @@ check_down:
   TAY ; store player y pos in Y register
 
   JSR check_collision
-  BEQ not_colliding_down_left; if the branch is taken, we are not colliding
+  BNE not_colliding_down_left; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   DEC player_y ; cancel the move down
   JMP done_checking ; done checking
@@ -500,7 +489,7 @@ not_colliding_down_left:
   TAY ; store player y pos in Y register
 
   JSR check_collision
-  BEQ not_colliding_down ; if the branch is taken, we are not colliding
+  BNE not_colliding_down ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   DEC player_y ; cancel the move down
   JMP done_checking ; done checking
@@ -520,44 +509,58 @@ done_checking:
 .proc check_collision
 check_collision:
   ; check for collisions
-  TXA ; save player x in accumulator (x/64 = tile x)
+  TXA ; save player x in accumulator (x/16 = tile x)
   LSR
   LSR
   LSR
-  LSR
-  LSR
-  LSR ; X = X / 64
+  LSR ; X = X / 16
+  STA temp_collision_x ; store player x in temp_collision_x
 
-  STA temp_collision ; store player x in temp_collision
+  TYA ; save player y in accumulator (y/16 = tile y)
+  LSR
+  LSR
+  LSR 
+  LSR ; Y = Y / 16
+  STA temp_collision_y ; store player y in temp_collision_y
 
-  TYA ; save player y in accumulator (y/8 * 4 = tile y)
-  LSR
-  LSR
-  LSR ; Y = Y / 8
+  LDA temp_collision_y ; load player y into accumulator
+  ASL        ; Multiply Y by 16 for map width
   ASL
-  ASL ; Y = Y * 4
-
+  ASL
+  ASL
+  STA temp_collision ; store player index in temp_collision
+  LDA temp_collision_x ; load player x into accumulator
   CLC
-  ADC temp_collision ; X + Y
-  TAY ; store Byte index in Y register
+  ADC temp_collision ; add player idex for map index
+  TAY ; store map index in Y register
 
-  TXA ; get player x back in accumulator (x/8 AND %0111 = bit mask index)
-  LSR
-  LSR
-  LSR ; X = X / 8
-  AND #%0111 ; X = X AND %0111
-  TAX ; store bit mask index in X register
-
-  LDA nametabe_select
+  LDA level_select
   CMP #$01
   BEQ check_collision_map2
 
-  LDA CollitionMap1, Y ; load byte from coalition map
-  AND BitMask, x ; AND byte with bit mask
+  LDA nametabe_select
+  CMP #$01
+  BEQ check_collision_nametable1
+
+  LDA nametable0, Y ; load byte from coalition map
+  CMP #$30 ; check if player is colliding with wall
   RTS ; return from subroutine
+  check_collision_nametable1:
+  LDA nametable1, y ; load byte from coalition map
+  CMP #$30 ; check if player is colliding with wall
+  RTS ; return from subroutine
+
   check_collision_map2:
-  LDA CollitionMap2, y ; load byte from coalition map
-  AND BitMask, x ; AND byte with bit mask
+  LDA nametabe_select
+  CMP #$01
+  BEQ check_collision_nametable3
+
+  LDA nametable2, Y ; load byte from coalition map
+  CMP #$30 ; check if player is colliding with wall
+  RTS ; return from subroutine
+  check_collision_nametable3:
+  LDA nametable3, y ; load byte from coalition map
+  CMP #$30 ; check if player is colliding with wall
   RTS ; return from subroutine
 .endproc
 
@@ -1201,6 +1204,103 @@ BitMask:
   .byte %00000100
   .byte %00000010
   .byte %00000001
+
+;Stage 1 part 1
+nametable0:
+  ;Packaged nametable. Every byte represents 4 2x2 tile blocks in a row
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
+  .byte $30,$00,$00,$00,$00,$00,$00,$00,$30,$30,$30,$30,$00,$00,$00,$30
+  .byte $30,$00,$30,$30,$30,$30,$00,$00,$00,$30,$00,$00,$32,$30,$00,$30
+  .byte $30,$00,$00,$00,$00,$32,$30,$00,$00,$30,$00,$00,$30,$00,$00,$30
+  .byte $30,$00,$30,$30,$00,$30,$30,$00,$00,$30,$00,$00,$30,$00,$30,$30
+  .byte $30,$00,$00,$30,$00,$00,$30,$00,$32,$32,$00,$00,$30,$32,$30,$33
+  .byte $30,$30,$30,$30,$30,$00,$00,$00,$00,$30,$00,$00,$30,$32,$00,$33
+  .byte $30,$00,$00,$00,$00,$00,$00,$30,$00,$30,$30,$00,$30,$30,$30,$33
+  .byte $30,$00,$30,$32,$30,$00,$00,$30,$00,$30,$30,$00,$00,$00,$00,$30
+  .byte $30,$00,$30,$00,$30,$30,$00,$30,$00,$30,$30,$30,$30,$30,$00,$30
+  .byte $30,$00,$30,$00,$30,$30,$00,$30,$00,$30,$30,$30,$30,$30,$00,$30
+  .byte $30,$00,$30,$30,$30,$32,$32,$30,$00,$00,$00,$30,$30,$30,$32,$30
+  .byte $30,$33,$00,$00,$00,$32,$32,$30,$30,$30,$00,$00,$00,$32,$32,$30
+  .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
+nt0end: 
+  nt0_length = nt0end-nametable0
+
+;Stage 1 part 2
+nametable1:
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
+  .byte $30,$00,$00,$00,$00,$00,$30,$30,$30,$30,$30,$32,$32,$00,$00,$33
+  .byte $30,$30,$30,$30,$30,$32,$32,$32,$00,$30,$30,$32,$32,$00,$00,$33
+  .byte $30,$00,$32,$32,$00,$00,$30,$30,$00,$30,$30,$32,$32,$00,$00,$33
+  .byte $30,$00,$30,$30,$30,$00,$30,$30,$00,$30,$30,$30,$30,$00,$00,$30
+  .byte $33,$32,$30,$00,$00,$00,$30,$30,$00,$00,$32,$30,$30,$30,$00,$30
+  .byte $33,$00,$00,$00,$30,$30,$30,$30,$00,$30,$30,$00,$00,$32,$32,$30
+  .byte $33,$32,$30,$00,$00,$00,$32,$32,$00,$30,$30,$00,$00,$30,$00,$30
+  .byte $30,$00,$30,$30,$30,$00,$32,$32,$00,$00,$30,$00,$30,$30,$00,$30
+  .byte $30,$00,$00,$00,$30,$00,$00,$30,$30,$00,$30,$30,$30,$00,$00,$30
+  .byte $30,$00,$30,$00,$30,$00,$30,$30,$30,$00,$00,$32,$00,$00,$00,$30
+  .byte $30,$00,$30,$00,$00,$32,$32,$00,$30,$00,$30,$32,$30,$30,$30,$30
+  .byte $30,$00,$30,$00,$30,$30,$30,$00,$30,$00,$00,$32,$32,$32,$30,$30
+  .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
+
+nt1end:
+  nt1_length = nt1end-nametable1
+
+;Stage 1 attributes
+attributes1:
+  .byte %01010101, %01010101, %01010101, %01010101
+  .byte %01010101, %01010101, %01010101, %01010101
+  .byte %01010101, %01010101, %01010101, %01010101
+  .byte %01010101, %01010101, %01010101, %01010101
+  
+;Stage 2 part 1
+nametable2:
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
+  .byte $35,$38,$35,$37,$37,$00,$00,$35,$35,$35,$35,$35,$00,$00,$00,$35
+  .byte $35,$00,$35,$37,$37,$00,$00,$00,$00,$00,$35,$00,$37,$37,$00,$35
+  .byte $35,$00,$35,$35,$35,$35,$00,$35,$35,$37,$00,$00,$35,$35,$00,$35
+  .byte $35,$37,$00,$35,$00,$00,$00,$35,$35,$00,$37,$37,$00,$35,$35,$35
+  .byte $35,$00,$37,$35,$35,$35,$35,$35,$35,$00,$00,$35,$00,$00,$35,$35
+  .byte $35,$35,$00,$35,$00,$00,$35,$00,$35,$35,$37,$35,$35,$00,$00,$35
+  .byte $35,$35,$37,$37,$37,$00,$35,$00,$37,$37,$37,$35,$35,$35,$37,$35
+  .byte $35,$35,$35,$35,$35,$00,$35,$35,$35,$35,$37,$35,$35,$35,$37,$35
+  .byte $35,$00,$00,$00,$35,$00,$00,$00,$37,$00,$00,$35,$35,$00,$00,$35
+  .byte $35,$37,$35,$35,$35,$35,$35,$37,$37,$35,$35,$35,$35,$00,$00,$35
+  .byte $35,$37,$35,$35,$37,$00,$00,$37,$00,$00,$35,$35,$35,$35,$00,$38
+  .byte $35,$37,$00,$00,$37,$00,$35,$35,$35,$00,$00,$37,$37,$35,$35,$35
+  .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
+nt2end:
+  nt2_length = nt2end-nametable2
+
+;Stage 2 part 2
+nametable3:
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
+  .byte $35,$38,$00,$37,$37,$00,$00,$00,$00,$00,$37,$37,$00,$37,$37,$35
+  .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$37,$35
+  .byte $35,$00,$35,$00,$37,$00,$00,$35,$00,$37,$35,$35,$35,$00,$37,$35
+  .byte $35,$00,$35,$00,$37,$35,$00,$35,$35,$37,$37,$00,$00,$00,$00,$35
+  .byte $35,$00,$37,$37,$37,$35,$00,$35,$35,$35,$35,$35,$35,$37,$35,$35
+  .byte $35,$00,$35,$35,$35,$35,$37,$37,$37,$00,$37,$00,$35,$37,$35,$35
+  .byte $35,$00,$35,$00,$37,$37,$37,$35,$35,$00,$37,$35,$35,$00,$00,$35
+  .byte $35,$00,$35,$00,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$00,$35
+  .byte $35,$00,$35,$00,$35,$35,$35,$00,$00,$00,$35,$35,$35,$35,$37,$35
+  .byte $35,$00,$35,$00,$37,$00,$00,$00,$35,$00,$35,$37,$35,$37,$37,$35
+  .byte $38,$00,$35,$00,$37,$35,$35,$35,$35,$00,$35,$37,$35,$37,$00,$35
+  .byte $35,$37,$37,$00,$35,$35,$00,$00,$35,$00,$00,$37,$37,$37,$00,$35
+  .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
+nt3end:
+  nt3_length = nt3end-nametable3
+
+
+;Stage 2 attributes
+attributes2:
+  .byte %10101010, %10101010, %10101010, %10101010
+  .byte %10101010, %10101010, %10101010, %10101010
+  .byte %10101010, %10101010, %10101010, %10101010
+  .byte %10101010, %10101010, %10101010, %10101010
 
 .segment "CHR"
 .incbin "graphics.chr"

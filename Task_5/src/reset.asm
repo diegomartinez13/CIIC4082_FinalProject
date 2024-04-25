@@ -4,7 +4,7 @@
 .importzp player_x, player_y, player_walkstate, player_frame_counter, player_dir
 .importzp player_UL, player_UR, player_DL, player_DR
 .importzp controller
-.importzp nametabe_select
+.importzp nametabe_select, level_select
 
 .segment "CODE"
 .import main
@@ -71,6 +71,10 @@ vblankwait2:
   ;nametable select
   LDA #$00
   STA nametabe_select
+
+  ;level select
+  LDA #$00
+  STA level_select
 
   JMP main
 .endproc
