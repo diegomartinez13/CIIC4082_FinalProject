@@ -37,6 +37,7 @@ level_select: .res 1
 
 ;scroll
 scroll: .res 1
+start_scroll: .res 1
 ppuctrl_settings: .res 1
 
 sleeping: .res 1
@@ -97,10 +98,11 @@ sleeping: .res 1
 .export main
 .proc main
   LDA #0  ; NES screen is 256 pixels wide (0-255)
-  STA scroll
+  STA scroll ; Set the scroll byte to 0
 
   LDA #$00
   STA nametable_select
+  LDA #$00
   STA level_select
 
   LDX PPUSTATUS
@@ -155,6 +157,10 @@ vblankwait: ; wait for another vblank before continuing
 
     ;update tiles after the DMA transfer
     JSR update_level_select
+
+    ; ;check if PPUCTRL needs to change 
+    LDA ppuctrl_settings
+    STA PPUCTRL
 
   update_sleep:
     INC sleeping
@@ -229,7 +235,13 @@ update_stage1:
   RTS                  ; Return from subroutine
 
 exit:
+  JSR update_name_table_collision
   RTS                  ; Return from subroutine
+.endproc
+
+.proc update_name_table_collision
+  JSR check_collision
+  RTS
 .endproc
 
 .proc player_update
@@ -272,28 +284,9 @@ not_colliding_top_left:
   BNE not_colliding_left ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   INC player_x ; cancel the move left
-  BEQ check_right ; check the right button
+  JMP check_right ; check the right button
 not_colliding_left:
   JSR player_move_left ; start animation moving left
-
-  LDA player_x ; load player x pos into accumulator
-  CMP #$00 ; check if player is at the left edge of the screen
-  BEQ change_nametable0
-  JMP no_change_nametable0
-change_nametable0:
-  LDA #$FF
-  STA player_x
-
-  JSR player_move_left
-
-  DEC scroll
-
-  LDA #$01
-  STA nametable_select
-  JMP check_right
-
-no_change_nametable0:
-  JSR player_move_left
   DEC scroll
 
 
@@ -336,12 +329,22 @@ not_colliding_top_right:
   BNE not_colliding_right ; if the branch is taken, we are not colliding
   ; if the branch is not taken, we are colliding
   DEC player_x ; cancel the move right
-  BEQ check_up ; check the up button
+  JMP check_up ; check the up button
 not_colliding_right:
   JSR player_move_right
-  
+
+  LDA nametable_select
+  CMP #$01
+  BEQ change_scroll_right
+
   LDA player_x
-  CMP #$F0 ; check if player is at the right edge of the screen
+  CMP #$F0 ; check if player is at next nametable
+  BEQ check_up
+  JMP no_change_nametable1
+
+  change_scroll_right:
+  LDA player_x
+  CMP #$F0 ; check if player is at next nametable
   BEQ change_nametable1
   JMP no_change_nametable1
 
@@ -351,11 +354,18 @@ change_nametable1:
 
   JSR player_move_right
 
+  LDA ppuctrl_settings
+  EOR #$01
+  STA ppuctrl_settings
+
   LDA #$00
   STA nametable_select
 
-  INC scroll
-  JMP check_up
+  LDA #$FF
+  STA scroll
+
+  
+  JSR update_name_table_collision
 
 no_change_nametable1:
   JSR player_move_right
@@ -485,30 +495,65 @@ check_collision:
 
   ; name table checker
   LDA nametable_select
-  CMP #$01
-  BNE check_collision_nametable1
+  CMP #$00
+  BEQ check_collision_nametable1
 
+  check_collision_nametable0:
   LDA nametable0, Y ; load byte from coalition map
   CMP #$30 ; check if player is colliding with wall
-  RTS ; return from subroutine
+  BEQ end_check_collision
+  CMP #$32 ; check if player is colliding with bush
+  LDA $0202 ; load player tile attributes
+  EOR #%00100000 ; set player tile attributes to walk behind bush
+  STA $0202 ; set player tile attributes to walk behind bush
+  STA $0206
+  STA $020a
+  STA $020e
+  JMP end_check_collision
   check_collision_nametable1:
   LDA nametable1, y ; load byte from coalition map
   CMP #$30 ; check if player is colliding with wall
-  RTS ; return from subroutine
+  BEQ end_check_collision
+  CMP #$32 ; check if player is colliding with bush
+  LDA $0202 ; load player tile attributes
+  EOR #%00100000 ; set player tile attributes to walk behind bush
+  STA $0202 ; set player tile attributes to walk behind bush
+  STA $0206
+  STA $020a
+  STA $020e
+  JMP end_check_collision
 
   check_collision_map2:
   ; name table checker
   LDA nametable_select
-  CMP #$01
+  CMP #$00
   BEQ check_collision_nametable3
 
   LDA nametable2, Y ; load byte from coalition map
   CMP #$35 ; check if player is colliding with wall
-  RTS ; return from subroutine
+  BEQ end_check_collision
+  CMP #$37 ; check if player is colliding with bush
+  LDA $0202 ; load player tile attributes
+  EOR #%00100000 ; set player tile attributes to walk behind bush
+  STA $0202 ; set player tile attributes to walk behind bush
+  STA $0206
+  STA $020a
+  STA $020e
+  JMP end_check_collision
   check_collision_nametable3:
   LDA nametable3, y ; load byte from coalition map
   CMP #$35 ; check if player is colliding with wall
-  RTS ; return from subroutine
+  BEQ end_check_collision
+  CMP #$37 ; check if player is colliding with bush
+  LDA $0202 ; load player tile attributes
+  EOR #%00100000 ; set player tile attributes to walk behind bush
+  STA $0202 ; set player tile attributes to walk behind bush
+  STA $0206
+  STA $020a
+  STA $020e
+
+  end_check_collision:
+  RTS
 .endproc
 
 .proc draw_player
