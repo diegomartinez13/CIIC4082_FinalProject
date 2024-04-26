@@ -1,6 +1,6 @@
 .include "constants.inc"
 .include "header.inc"
-.import Unpack0, Unpack1, Unpack2, Unpack3
+.import Unpack0, Unpack1, Unpack2, Unpack3, draw_finished
 
 .segment "ZEROPAGE"
 ;player1 variables 
@@ -18,6 +18,7 @@ player_DR: .res 1
 
 ;controller variables
 controller: .res 1
+skip_controller: .res 1
 
 ;collision variables
 temp_collision_x: .res 1
@@ -41,13 +42,32 @@ start_scroll: .res 1
 ppuctrl_settings: .res 1
 
 sleeping: .res 1
+
+; clock
+clock_num0: .res 1
+clock_num1: .res 1
+clock_num2: .res 1
+clock_num3: .res 1
+clock_timmer: .res 1
+clock_frame_counter: .res 1
+counter_level1: .res 1
+counter_level2: .res 1
+total_counter: .res 1
+
+;ending variables
+finished: .res 1
+victory: .res 1
+game_over: .res 1
+
+
+
 .exportzp temp, temp_1, temp_tile, temp_addr
 .exportzp player_x, player_y, player_dir, player_frame_counter, player_walkstate
 .exportzp player_UL, player_UR, player_DL, player_DR
 .exportzp controller
 .exportzp nametable_select, level_select, victory, game_over
 .exportzp scroll, ppuctrl_settings
-.export nametable0, nametable1, nametable2, nametable3, nt0_length, nt1_length, nt2_length, nt3_length
+.export nametable0, nametable1, nametable2, nametable3, nametable_gameover, nametable_victory
 
 .segment "CODE"
 .proc irq_handler ; Interrupt Request,
@@ -97,13 +117,22 @@ sleeping: .res 1
 
 .export main
 .proc main
+  ;initialize variables
+  ;initialize clock
+  LDA #$75
+  STA clock_timmer
+
+
   LDA #0  ; NES screen is 256 pixels wide (0-255)
   STA scroll ; Set the scroll byte to 0
 
   LDA #$00
   STA nametable_select
-  LDA #$00
   STA level_select
+  STA clock_frame_counter
+  STA counter_level1
+  STA counter_level2
+  STA total_counter
 
   LDX PPUSTATUS
   LDX #$3f
@@ -155,12 +184,18 @@ vblankwait: ; wait for another vblank before continuing
     JSR player_update
     JSR draw_player
 
-    ;update tiles after the DMA transfer
-    JSR update_level_select
-
     ; ;check if PPUCTRL needs to change 
     LDA ppuctrl_settings
     STA PPUCTRL
+
+    JSR update_name_table_collision
+
+    LDA finished
+    CMP #$01
+    BEQ loop_finished_game
+    JMP update_sleep
+    loop_finished_game:
+      JMP loop_finished_game
 
   update_sleep:
     INC sleeping
@@ -172,9 +207,9 @@ vblankwait: ; wait for another vblank before continuing
 .endproc
 
 .proc update_level_select
-  LDA controller       ; Load the controller state
-  AND #BTN_A           ; Mask all bits except for the A button
-  BEQ exit             ; If A button is not pressed, exit
+  ; LDA controller       ; Load the controller state
+  ; AND #BTN_A           ; Mask all bits except for the A button
+  ; BEQ exit             ; If A button is not pressed, exit
 
   LDA level_select       ; Load the current value of map_select
   CMP #$00
@@ -244,8 +279,6 @@ exit:
   RTS
 .endproc
 
-.import draw_finished
-
 .proc player_update
   PHP
   PHA
@@ -288,6 +321,30 @@ not_colliding_top_left:
   INC player_x ; cancel the move left
   JMP check_right ; check the right button
 not_colliding_left:
+
+  ; check if level 2 and finished game
+  LDA finished
+  CMP #$01
+  BEQ load_finished_game
+  JMP game_not_finished
+
+  load_finished_game:
+  LDA #$00
+  STA PPUCTRL
+  STA PPUMASK
+
+  JSR draw_finished
+
+  LDA #$FF
+  STA scroll
+
+  LDA #%10001000       ; turn on NMIs, sprites use first pattern table
+  STA PPUCTRL
+  LDA #%00001110       ; Turn on rendering, show sprites and background
+  STA PPUMASK
+  RTS
+
+  game_not_finished:
   JSR player_move_left ; start animation moving left
   DEC scroll
 
@@ -296,10 +353,13 @@ not_colliding_left:
 check_right:
   LDA controller
   AND #BTN_RIGHT
-  BEQ check_up ; if the right button is not pressed, check the up button
+  BEQ jump_to_check_up ; if the right button is not pressed, check the up button
   ; if the branch is not taken, we are moving right
   INC player_x ; move player right
-
+  JMP not_jumped
+  jump_to_check_up:
+  JMP check_up
+  not_jumped:
   ;check for collision
   LDA player_x ; load player x pos into accumulator
   CLC
@@ -341,8 +401,39 @@ not_colliding_right:
 
   LDA player_x
   CMP #$F0 ; check if player is at next nametable
-  BEQ check_up
+  BEQ loading_next_level
   JMP no_change_nametable1
+
+  loading_next_level:
+  ; reset player position
+  LDA #$10
+  STA player_x
+  LDA #$1F
+  STA player_y
+
+  ; reset scroll
+  LDA #$00
+  STA scroll
+
+  ; reset level select
+  LDA #$01
+  STA level_select
+
+  JSR update_level_select
+
+  LDA #$00
+  STA nametable_select
+
+  LDA ppuctrl_settings
+  EOR #$01
+  STA ppuctrl_settings
+
+
+  ; JSR update_name_table_collision
+
+  JSR update_level_select
+
+  JMP check_up
 
   change_scroll_right:
   LDA player_x
@@ -503,7 +594,7 @@ check_collision:
   check_collision_nametable0:
   LDA nametable0, Y ; load byte from coalition map
   CMP #$30 ; check if player is colliding with wall
-  BEQ end_check_collision
+  BEQ jump_to_end_check_collision
   CMP #$32 ; check if player is colliding with bush
   LDA $0202 ; load player tile attributes
   EOR #%00100000 ; set player tile attributes to walk behind bush
@@ -511,6 +602,7 @@ check_collision:
   STA $0206
   STA $020a
   STA $020e
+  jump_to_end_check_collision:
   JMP end_check_collision
   check_collision_nametable1:
   LDA nametable1, y ; load byte from coalition map
@@ -546,6 +638,19 @@ check_collision:
   LDA nametable3, y ; load byte from coalition map
   CMP #$35 ; check if player is colliding with wall
   BEQ end_check_collision
+  CMP #$38
+  BEQ finished_game
+  JMP continue
+  finished_game:
+  LDA #$01
+  STA finished
+  LDA #$01
+  STA victory
+  LDA #$00
+  STA game_over
+  LDA #$01
+  JMP end_check_collision
+  continue:
   CMP #$37 ; check if player is colliding with bush
   LDA $0202 ; load player tile attributes
   EOR #%00100000 ; set player tile attributes to walk behind bush
@@ -1068,18 +1173,15 @@ nametable0:
   .byte $30,$00,$30,$30,$30,$30,$00,$00,$00,$30,$00,$00,$32,$30,$00,$30
   .byte $30,$00,$00,$00,$00,$32,$30,$00,$00,$30,$00,$00,$30,$00,$00,$30
   .byte $30,$00,$30,$30,$00,$30,$30,$00,$00,$30,$00,$00,$30,$00,$30,$30
-  .byte $30,$00,$00,$30,$00,$00,$30,$00,$32,$32,$00,$00,$30,$32,$30,$33
-  .byte $30,$30,$30,$30,$30,$00,$00,$00,$00,$30,$00,$00,$30,$32,$00,$33
-  .byte $30,$00,$00,$00,$00,$00,$00,$30,$00,$30,$30,$00,$30,$30,$30,$33
+  .byte $30,$00,$00,$30,$00,$00,$30,$00,$32,$32,$00,$00,$30,$32,$30,$00
+  .byte $30,$30,$30,$30,$30,$00,$00,$00,$00,$30,$00,$00,$30,$32,$00,$00
+  .byte $30,$00,$00,$00,$00,$00,$00,$30,$00,$30,$30,$00,$30,$30,$30,$00
   .byte $30,$00,$30,$32,$30,$00,$00,$30,$00,$30,$30,$00,$00,$00,$00,$30
   .byte $30,$00,$30,$00,$30,$30,$00,$30,$00,$30,$30,$30,$30,$30,$00,$30
   .byte $30,$00,$30,$00,$30,$30,$00,$30,$00,$30,$30,$30,$30,$30,$00,$30
   .byte $30,$00,$30,$30,$30,$32,$32,$30,$00,$00,$00,$30,$30,$30,$32,$30
-  .byte $30,$33,$00,$00,$00,$32,$32,$30,$30,$30,$00,$00,$00,$32,$32,$30
+  .byte $30,$00,$00,$00,$00,$32,$32,$30,$30,$30,$00,$00,$00,$32,$32,$30
   .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
-nt0end: 
-  nt0_length = nt0end-nametable0
-
 ;Stage 1 part 2
 nametable1:
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
@@ -1088,9 +1190,9 @@ nametable1:
   .byte $30,$30,$30,$30,$30,$32,$32,$32,$00,$30,$30,$32,$32,$00,$00,$33
   .byte $30,$00,$32,$32,$00,$00,$30,$30,$00,$30,$30,$32,$32,$00,$00,$33
   .byte $30,$00,$30,$30,$30,$00,$30,$30,$00,$30,$30,$30,$30,$00,$00,$30
-  .byte $33,$32,$30,$00,$00,$00,$30,$30,$00,$00,$32,$30,$30,$30,$00,$30
-  .byte $33,$00,$00,$00,$30,$30,$30,$30,$00,$30,$30,$00,$00,$32,$32,$30
-  .byte $33,$32,$30,$00,$00,$00,$32,$32,$00,$30,$30,$00,$00,$30,$00,$30
+  .byte $00,$32,$30,$00,$00,$00,$30,$30,$00,$00,$32,$30,$30,$30,$00,$30
+  .byte $00,$00,$00,$00,$30,$30,$30,$30,$00,$30,$30,$00,$00,$32,$32,$30
+  .byte $00,$32,$30,$00,$00,$00,$32,$32,$00,$30,$30,$00,$00,$30,$00,$30
   .byte $30,$00,$30,$30,$30,$00,$32,$32,$00,$00,$30,$00,$30,$30,$00,$30
   .byte $30,$00,$00,$00,$30,$00,$00,$30,$30,$00,$30,$30,$30,$00,$00,$30
   .byte $30,$00,$30,$00,$30,$00,$30,$30,$30,$00,$00,$32,$00,$00,$00,$30
@@ -1098,21 +1200,11 @@ nametable1:
   .byte $30,$00,$30,$00,$30,$30,$30,$00,$30,$00,$00,$32,$32,$32,$30,$30
   .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
 
-nt1end:
-  nt1_length = nt1end-nametable1
-
-;Stage 1 attributes
-attributes1:
-  .byte %01010101, %01010101, %01010101, %01010101
-  .byte %01010101, %01010101, %01010101, %01010101
-  .byte %01010101, %01010101, %01010101, %01010101
-  .byte %01010101, %01010101, %01010101, %01010101
-  
 ;Stage 2 part 1
 nametable2:
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
   .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
-  .byte $35,$38,$35,$37,$37,$00,$00,$35,$35,$35,$35,$35,$00,$00,$00,$35
+  .byte $35,$00,$35,$37,$37,$00,$00,$35,$35,$35,$35,$35,$00,$00,$00,$35
   .byte $35,$00,$35,$37,$37,$00,$00,$00,$00,$00,$35,$00,$37,$37,$00,$35
   .byte $35,$00,$35,$35,$35,$35,$00,$35,$35,$37,$00,$00,$35,$35,$00,$35
   .byte $35,$37,$00,$35,$00,$00,$00,$35,$35,$00,$37,$37,$00,$35,$35,$35
@@ -1122,12 +1214,9 @@ nametable2:
   .byte $35,$35,$35,$35,$35,$00,$35,$35,$35,$35,$37,$35,$35,$35,$37,$35
   .byte $35,$00,$00,$00,$35,$00,$00,$00,$37,$00,$00,$35,$35,$00,$00,$35
   .byte $35,$37,$35,$35,$35,$35,$35,$37,$37,$35,$35,$35,$35,$00,$00,$35
-  .byte $35,$37,$35,$35,$37,$00,$00,$37,$00,$00,$35,$35,$35,$35,$00,$38
+  .byte $35,$37,$35,$35,$37,$00,$00,$37,$00,$00,$35,$35,$35,$35,$00,$00
   .byte $35,$37,$00,$00,$37,$00,$35,$35,$35,$00,$00,$37,$37,$35,$35,$35
   .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
-nt2end:
-  nt2_length = nt2end-nametable2
-
 ;Stage 2 part 2
 nametable3:
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
@@ -1142,19 +1231,44 @@ nametable3:
   .byte $35,$00,$35,$00,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$00,$35
   .byte $35,$00,$35,$00,$35,$35,$35,$00,$00,$00,$35,$35,$35,$35,$37,$35
   .byte $35,$00,$35,$00,$37,$00,$00,$00,$35,$00,$35,$37,$35,$37,$37,$35
-  .byte $38,$00,$35,$00,$37,$35,$35,$35,$35,$00,$35,$37,$35,$37,$00,$35
+  .byte $00,$00,$35,$00,$37,$35,$35,$35,$35,$00,$35,$37,$35,$37,$00,$35
   .byte $35,$37,$37,$00,$35,$35,$00,$00,$35,$00,$00,$37,$37,$37,$00,$35
   .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
-nt3end:
-  nt3_length = nt3end-nametable3
 
+; game finished screen
+nametable_gameover:
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $03,$03,$03,$00,$03,$03,$03,$00,$03,$00,$00,$03,$00,$03,$03,$03 
+  .byte $03,$00,$00,$00,$03,$00,$03,$00,$03,$03,$03,$03,$00,$03,$00,$00 
+  .byte $03,$00,$00,$00,$03,$00,$03,$00,$03,$00,$00,$03,$00,$03,$03,$03 
+  .byte $03,$03,$03,$00,$03,$03,$03,$00,$03,$00,$00,$03,$00,$03,$03,$03 
+  .byte $03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$00,$03,$00,$03,$00,$00 
+  .byte $03,$03,$03,$00,$03,$00,$03,$00,$03,$00,$00,$03,$00,$03,$03,$03 
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $03,$03,$03,$00,$03,$00,$03,$00,$03,$03,$03,$00,$03,$03,$03,$00 
+  .byte $03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$00,$00,$03,$00,$03,$00 
+  .byte $03,$00,$03,$00,$03,$00,$03,$00,$03,$03,$03,$00,$03,$03,$03,$00 
+  .byte $03,$00,$03,$00,$03,$00,$03,$00,$03,$03,$03,$00,$03,$03,$00,$00 
+  .byte $03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$00,$00,$03,$00,$03,$00 
+  .byte $03,$03,$03,$00,$00,$03,$00,$00,$03,$03,$03,$00,$03,$00,$03,$00 
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
 
-;Stage 2 attributes
-attributes2:
-  .byte %10101010, %10101010, %10101010, %10101010
-  .byte %10101010, %10101010, %10101010, %10101010
-  .byte %10101010, %10101010, %10101010, %10101010
-  .byte %10101010, %10101010, %10101010, %10101010
+nametable_victory:
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $03,$00,$03,$00,$03,$03,$00,$03,$03,$03,$00,$03,$03,$03,$03,$00 
+  .byte $03,$00,$03,$00,$03,$03,$00,$03,$00,$00,$00,$00,$03,$03,$00,$00 
+  .byte $03,$00,$03,$00,$03,$03,$00,$03,$00,$00,$00,$00,$03,$03,$00,$00 
+  .byte $03,$00,$03,$00,$03,$03,$00,$03,$00,$00,$00,$00,$03,$03,$00,$00 
+  .byte $03,$00,$03,$00,$03,$03,$00,$03,$00,$00,$00,$00,$03,$03,$00,$00 
+  .byte $00,$03,$00,$00,$03,$03,$00,$03,$03,$03,$00,$00,$03,$03,$00,$00 
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $03,$03,$03,$00,$03,$03,$03,$00,$03,$00,$03,$00,$03,$00,$00,$00 
+  .byte $03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$00,$00 
+  .byte $03,$00,$03,$00,$03,$03,$03,$00,$00,$03,$00,$00,$03,$00,$00,$00 
+  .byte $03,$00,$03,$00,$03,$03,$00,$00,$00,$03,$00,$00,$03,$00,$00,$00 
+  .byte $03,$00,$03,$00,$03,$00,$03,$00,$00,$00,$00,$00,$00,$00,$00,$00 
+  .byte $03,$03,$03,$00,$03,$00,$03,$00,$00,$03,$00,$00,$03,$00,$00,$00 
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
 
 .segment "CHR"
 .incbin "graphics.chr"
