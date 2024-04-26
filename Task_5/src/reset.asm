@@ -40,11 +40,32 @@ vblankwait2:
   BPL vblankwait2
 
 ; zero page variables initialization
-  ;player position
+  ;nametable select
+  LDA #$01
+  STA nametabe_select
+
+  ;level select
+  LDA #$00
+  STA level_select
+
+  ;player position depending on the level
+  LDA level_select
+  CMP #$01
+  BEQ level2
+
   LDA #$10
   STA player_x
   LDA #$cF
   STA player_y
+  JMP player_direction
+
+  level2:
+  LDA #$10
+  STA player_x
+  LDA #$1F
+  STA player_y
+
+  player_direction:
   
   ;player direction
   LDA #$00
@@ -67,14 +88,6 @@ vblankwait2:
   ;player frame counter (used for animation)
   LDA #$00
   STA player_frame_counter
-
-  ;nametable select
-  LDA #$00
-  STA nametabe_select
-
-  ;level select
-  LDA #$00
-  STA level_select
 
   JMP main
 .endproc
