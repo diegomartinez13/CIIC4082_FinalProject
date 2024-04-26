@@ -19,7 +19,7 @@ map_select: .res 1
 
 ppuctrl_settings: .res 1
 .exportzp controller, temp, map_select
-.export nametable0, nametable1, nametable2, nametable3, nt0_length, nt1_length, nt2_length, nt3_length
+.export nametable0, nametable1, nametable2, nametable3
 .exportzp temp_1, temp_tile, temp_addr
 
 .segment "CODE"
@@ -73,6 +73,9 @@ ppuctrl_settings: .res 1
   LDA #0  ; NES screen is 256 pixels wide (0-255)
   STA scroll 
 
+  LDA #$00
+  STA map_select
+
   ; Write a pallette to the PPU
   LDX PPUSTATUS ; Clear VBlank flag
   LDX #$3f ; load the X register with the hex value $3f
@@ -124,6 +127,10 @@ ppuctrl_settings: .res 1
 
     JSR update_map_select
 
+    ; ;check if PPUCTRL needs to change 
+    LDA ppuctrl_settings
+    STA PPUCTRL
+
   update_sleep:
     INC sleeping
     sleep:
@@ -139,7 +146,9 @@ ppuctrl_settings: .res 1
   BEQ exit             ; If A button is not pressed, exit
 
   LDA map_select       ; Load the current value of map_select
+  CMP #$00
   BEQ prepare_stage2   ; If map_select is 0, prepare to switch to stage 2
+  LDA map_select       ; Load the current value of map_select
   CMP #$01
   BEQ prepare_stage1   ; If map_select is 1, prepare to switch to stage 1
   JMP exit
@@ -174,7 +183,7 @@ update_stage1:
   LDA #$00
   STA PPUCTRL
   STA PPUMASK
-  LDX PPUSTATUS        ; Read PPU status to clear VBLANK flag
+
   JSR Unpack0          ; unpack nametable for part 1
   JSR Unpack1          ; unpack nametable for part 2
 
@@ -249,8 +258,7 @@ nametable0:
   .byte $30,$00,$30,$30,$30,$32,$32,$30,$00,$00,$00,$30,$30,$30,$32,$30
   .byte $30,$33,$00,$00,$00,$32,$32,$30,$30,$30,$00,$00,$00,$32,$32,$30
   .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
-nt0end: 
-  nt0_length = nt0end-nametable0
+
 
 
 ;Stage 1 part 2
@@ -271,16 +279,7 @@ nametable1:
   .byte $30,$00,$30,$00,$30,$30,$30,$00,$30,$00,$00,$32,$32,$32,$30,$30
   .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
 
-nt1end:
-  nt1_length = nt1end-nametable1
 
-;Stage 1 attributes
-attributes1:
-  .byte %01010101, %01010101, %01010101, %01010101
-  .byte %01010101, %01010101, %01010101, %01010101
-  .byte %01010101, %01010101, %01010101, %01010101
-  .byte %01010101, %01010101, %01010101, %01010101
-  
 ;Stage 2 part 1
 nametable2:
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
@@ -298,8 +297,6 @@ nametable2:
   .byte $35,$37,$35,$35,$37,$00,$00,$37,$00,$00,$35,$35,$35,$35,$00,$38
   .byte $35,$37,$00,$00,$37,$00,$35,$35,$35,$00,$00,$37,$37,$35,$35,$35
   .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
-nt2end:
-  nt2_length = nt2end-nametable2
 
 ;Stage 2 part 2
 nametable3:
@@ -318,8 +315,7 @@ nametable3:
   .byte $38,$00,$35,$00,$37,$35,$35,$35,$35,$00,$35,$37,$35,$37,$00,$35
   .byte $35,$37,$37,$00,$35,$35,$00,$00,$35,$00,$00,$37,$37,$37,$00,$35
   .byte $35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35,$35
-nt3end:
-  nt3_length = nt3end-nametable3
+
 
 
 ;Stage 2 attributes
