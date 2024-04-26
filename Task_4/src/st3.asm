@@ -8,10 +8,10 @@
 	LDX #$00
 	STX temp
 
-	LDA #$10        ; Load the low byte (10 in hex)
-	STA temp_addr       ; Store it in ztemp (low byte)
-	LDA #$00        ; Load the high byte (0, since 10 is less than 256)
-	STA temp_addr+1     ; Store it in ztemp+1 (high byte)
+	LDA #$10        ; Load the low byte 
+	STA temp_addr       ; Store low byte
+	LDA #$00        ; Load the high byte 
+	STA temp_addr+1     ; Store high byte
 
 	LDA #$00
 	STA temp_1
@@ -40,14 +40,14 @@
   CPY #$02
   BNE LoopAgain
   
-  LDA temp_addr       ; Load the low byte of ztemp
+  LDA temp_addr       ; Load the low byte
   CLC             ; Clear the carry flag before addition
-  ADC #$10      ; Add 30 (1E in hex) to the accumulator
-  STA temp_addr       ; Store the result back in ztemp
+  ADC #$10      ; Add 16 to the accumulator
+  STA temp_addr       ; Store the result 
 
-  LDA temp_addr+1     ; Load the high byte of ztemp
+  LDA temp_addr+1     ; Load the high byte
   ADC #$00        ; Add any carry from the previous addition
-  STA temp_addr+1     ; Store the result back in ztemp+1
+  STA temp_addr+1     ; Store the result
 
   STX temp
 
