@@ -1,72 +1,80 @@
 .include "constants.inc"
 .import nametable1, nt1_length
+.importzp temp, temp_addr, temp_1
 .segment "CODE"
 
 .export Unpack1
 .proc Unpack1
-  LDX #0               ; Index for packed data
-  LDY #0               ; Initialize counter for length check
+	LDX #$00
+	STX temp
 
-loop1:
-  LDA nametable1, X   ; Load a byte of packed data
-  INX
-  INY
+	LDA #$10        ; Load the low byte (10 in hex)
+	STA temp_addr       ; Store it in ztemp (low byte)
+	LDA #$00        ; Load the high byte (0, since 10 is less than 256)
+	STA temp_addr+1     ; Store it in ztemp+1 (high byte)
 
-  ; Decode each pair 
-  LSR A
-  LSR A
-  TAX                  ; Save the first tile to X
-  JSR decode1           ; Decode and optionally compare
-  TXA                  ; Restore A from X
+	LDA #$00
+	STA temp_1
 
-  LSR A
-  LSR A
-  TAX
-  JSR decode1
-  TXA
+	LDA PPUSTATUS
+	LDA #$24
+	STA PPUADDR    
+	LDA #$00
+	STA PPUADDR  
 
-  LSR A
-  LSR A
-  TAX
-  JSR decode1
-  TXA
+	OuterLoop:
+	LDY #$00
 
-  LSR A
-  LSR A
-  TAX
-  JSR decode1
+	LoopAgain:   
+	LDX temp
+	Loop:  
+		LDA nametable1,X       
+		STA PPUDATA 
+		LDA nametable1,X       
+		STA PPUDATA    
+		INX           
+		CPX temp_addr 
+		BNE Loop
+	INY
+	CPY #$02
+	BNE LoopAgain
+	
+	LDA temp_addr       ; Load the low byte of ztemp
+	CLC             ; Clear the carry flag before addition
+	ADC #$10      ; Add 30 (1E in hex) to the accumulator
+	STA temp_addr       ; Store the result back in ztemp
 
-  CPX nt1_length  ; Check if finished
-  BCC loop1
+	LDA temp_addr+1     ; Load the high byte of ztemp
+	ADC #$00        ; Add any carry from the previous addition
+	STA temp_addr+1     ; Store the result back in ztemp+1
 
-  RTS
+	STX temp
 
-decode1:
-  ; Map X (2-bit value) to a tile, print or store for comparison
-  ; Example mapping
-  CPX #%00
-  BEQ is_empty
-  CPX #%01
-  BEQ is_wall
-  CPX #%10
-  BEQ is_transparent
-  CPX #%11
-  BEQ is_block
+	LDA temp_1
+	CLC       ; Clear the carry flag to ensure clean addition
+	ADC #$01  ; Add with carry the value 1 to the accumulator
+	STA temp_1
 
-is_empty:
-  LDA #$00
-  STA PPUDATA
-  RTS
-is_wall:
-  LDA #$30
-  STA PPUDATA
-  RTS
-is_transparent:
-  LDA #$32
-  STA PPUDATA
-  RTS
-is_block:
-  LDA #$33
-  STA PPUDATA
+	CMP #$0F 
+	BEQ END
+
+	JMP OuterLoop
+
+  END:
+	LDX #$00
+	LDA PPUSTATUS    ; Reset the address latch
+	LDA #$27         ; High byte of $23C0
+	STA PPUADDR
+	LDA #$C0         ; Low byte of $23C0
+	STA PPUADDR
+
+	load_attributes:
+	LDX #%01010101
+	STX PPUDATA
+	CLC
+	ADC #$01
+	CMP #$00
+	BNE load_attributes
+  
   RTS
 .endproc
