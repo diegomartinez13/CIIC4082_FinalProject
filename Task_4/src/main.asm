@@ -3,18 +3,7 @@
 .import Unpack0, Unpack1, Unpack2, Unpack3
 
 .segment "ZEROPAGE"
-;player1 variables 
-;player_x: .res 1
-;player_y: .res 1
-;player_dir: .res 1
-;player_frame_counter: .res 1
-;player_walkstate: .res 1
-
-;player1 sprites
-;player_UL: .res 1
-;player_UR: .res 1
-;player_DL: .res 1
-;player_DR: .res 1
+sleeping: .res 1
 
 ;variables
 changebg: .res 1
@@ -28,10 +17,10 @@ temp_addr: .res 1
 
 map_select: .res 1
 
-;ppuctrl_sett: .res 1
+ppuctrl_settings: .res 1
 .exportzp controller, temp, map_select
 .export nametable0, nametable1, nametable2, nametable3, nt0_length, nt1_length, nt2_length, nt3_length
-.exportzp temp_1,temp_tile, temp_addr
+.exportzp temp_1, temp_tile, temp_addr
 
 .segment "CODE"
 .proc irq_handler ; Interrupt Request,
@@ -41,99 +30,195 @@ map_select: .res 1
 .import read_controller
 
 .proc nmi_handler ; Non-Maskable Interrupt,
-  LDA #$00        
-  STA OAMADDR     ; Prep OAM for memory transfer at byte 0
-  LDA #$02
-  STA OAMDMA      ; Transfer memory page ($0200-$02ff) to OAM
-  LDA #$00
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+  ;copy sprite data to OAM
+  LDA #$00 ; Load the accumulator with the hex value $00
+  STA OAMADDR ; Set OAM address to $00. store the accumulator in the memory location $2003
+  LDA #$02 ; Load the accumulator with the hex value $02
+  STA OAMDMA ; This tells the PPU to initiate a high-speed transfer of the 256 bytes from $0200-$02ff into OAM
   
-  JSR read_controller
+  ;set PPUCTRL
+  LDA ppuctrl_settings
+  STA PPUCTRL
 
-  map_selection:
-    LDA controller
-    AND #BTN_A
-    LDA map_select
+  ;set scroll values
+  LDA scroll ; X scroll first
+  STA PPUSCROLL
+  LDA #$00 ; Y scroll
+  STA PPUSCROLL
 
-  ;LDA scroll
-  ;CMP #$00 ; check if the end of the nametable was reached
-  ;BNE set_scroll
+  ;all done
+  LDA #$00
+  STA sleeping
 
-  ;LDA ppuctrl_sett
-  ;EOR #%00000001 ; flip bit 0 to its opposite
-	;STA ppuctrl_settings
-	;STA PPUCTRL
-	;LDA #255
-	;STA scroll
-
-;set_scroll:
-  ;LDA scroll
-  ;STA PPUSCROLL ; set X scroll and leave Y untouched since it will remain static
-
-  LDX #$00
-  STX PPUSCROLL   ;Set scroll positions
-  STX PPUSCROLL
-
-  RTI
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTI ; Return from interrupt
 .endproc
 
 .import reset_handler
 
 .export main
 .proc main
-  LDX PPUSTATUS
-  LDX #$3f
-  STX PPUADDR
-  LDX #$00
-  STX PPUADDR
+  LDA #0  ; NES screen is 256 pixels wide (0-255)
+  STA scroll 
 
-  LDX #0
-load_palettes:      ; Iterate until all palettes are loaded 
-  LDA palettes,X
-  STA PPUDATA
-  INX
-  CPX #$20          ; Max 32 colors in palettes
-  BNE load_palettes
+  ; Write a pallette to the PPU
+  LDX PPUSTATUS ; Clear VBlank flag
+  LDX #$3f ; load the X register with the hex value $3f
+  STX PPUADDR ; store the X register in the memory location $2006
+  LDX #$00 ; load the X register with the hex value $00
+  STX PPUADDR ; store the X register in the memory location $2006
+  load_pallette:
+    LDA pallettes, X ; Load the accumulator with the value at the address of pallettes + X
+    STA PPUDATA ; store the accumulator in the memory location $2007
+    INX ; Increment the X register
+    CPX #$20 ; Compare the X register to the hex value $20 (32)
+    BNE load_pallette ; Branch if not equal
   
+  load_stages:
+    LDA map_select
+    CMP #$00
+    BEQ stage1          ; Load Stage 1 if A is not pressed
+    JMP stage2          ; If pressed, load stage 2
 
+  stage1:
+    ; Load stage 1 part 1
+    LDX PPUSTATUS
+    JSR Unpack0   ; unpack nametable for part 1
+    JSR Unpack1   ; unpack nametable for part 2
+    JMP vblankwait
 
-load_stages:
-  LDA map_select
-  CMP #$00
-  BEQ stage1          ; Load Stage 1 if A is not pressed
-  JMP stage2          ; If pressed, load stage 2
+  stage2:
+    ; Load stage 2 part 1
+    LDX PPUSTATUS
+    JSR Unpack2   ; unpack nametable for part 1
+    JSR Unpack3   ; unpack nametable for part 2
+    JMP vblankwait
 
-stage1:
-  ; Load stage 1 part 1
-  LDX PPUSTATUS
-  JSR Unpack0   ; unpack nametable for part 1
-  JSR Unpack1   ; unpack nametable for part 2
-  JMP vblankwait
+  vblankwait: ; wait for another vblank before continuing
+    BIT PPUSTATUS
+    BPL vblankwait
 
-stage2:
-  ; Load stage 2 part 1
-  LDX PPUSTATUS
-  JSR Unpack2   ; unpack nametable for part 1
-  JSR Unpack3   ; unpack nametable for part 2
-  JMP vblankwait
+    LDA #%10001000  ; turn on NMIs, sprites use first pattern table
+    STA ppuctrl_settings
+    STA PPUCTRL
+    LDA #%00011110  ; turn on screen
+    STA PPUMASK
 
-vblankwait: ; wait for another vblank before continuing
-  BIT PPUSTATUS
-  BPL vblankwait
+  mainloop:
+    JSR read_controller ; Read the controller
 
-  LDA #%10001000  ; turn on NMIs, sprites use first pattern table
+    ;update tiles after the DMA transfer
+    JSR update_background
+
+    JSR update_map_select
+
+  update_sleep:
+    INC sleeping
+    sleep:
+      LDA sleeping
+      BNE sleep
+
+      JMP mainloop
+.endproc
+
+.proc update_map_select
+  LDA controller       ; Load the controller state
+  AND #BTN_A           ; Mask all bits except for the A button
+  BEQ exit             ; If A button is not pressed, exit
+
+  LDA map_select       ; Load the current value of map_select
+  BEQ prepare_stage2   ; If map_select is 0, prepare to switch to stage 2
+  CMP #$01
+  BEQ prepare_stage1   ; If map_select is 1, prepare to switch to stage 1
+  JMP exit
+
+prepare_stage2:
+  JSR update_stage2    ; Call subroutine to update to stage 2
+  LDA #$01
+  STA map_select       ; Update map_select to indicate stage 2
+  JMP exit
+
+prepare_stage1:
+  JSR update_stage1    ; Call subroutine to update to stage 1
+  LDA #$00
+  STA map_select       ; Update map_select to indicate stage 1
+  JMP exit
+
+update_stage2:
+  LDA #$00
   STA PPUCTRL
-  LDA #%00011110  ; turn on screen
   STA PPUMASK
 
-forever:
-  JMP forever
+  JSR Unpack2          ; unpack nametable for part 1
+  JSR Unpack3          ; unpack nametable for part 2
+
+  LDA #%10001000       ; turn on NMIs, sprites use first pattern table
+  STA PPUCTRL
+  LDA #%00011110       ; Turn on rendering, show sprites and background
+  STA PPUMASK
+  RTS                  ; Return from subroutine
+
+update_stage1:
+  LDA #$00
+  STA PPUCTRL
+  STA PPUMASK
+  LDX PPUSTATUS        ; Read PPU status to clear VBLANK flag
+  JSR Unpack0          ; unpack nametable for part 1
+  JSR Unpack1          ; unpack nametable for part 2
+
+  LDA #%10001000       ; turn on NMIs, sprites use first pattern table
+  STA PPUCTRL
+  LDA #%00011110       ; Turn on rendering, show sprites and background
+  STA PPUMASK
+  RTS                  ; Return from subroutine
+
+exit:
+  RTS                  ; Return from subroutine
+.endproc
+
+.proc update_background
+  ; check if the background needs to be changed to the left
+  LDA controller
+  AND #BTN_LEFT
+  BEQ not_left
+
+  LDA scroll
+  CMP #0
+  BEQ not_left
+  INC scroll
+
+  not_left:
+    ; check if the background needs to be changed to the right
+    LDA controller
+    AND #BTN_RIGHT
+    BEQ not_right
+
+    LDA scroll
+    CMP #255
+    BEQ not_right
+    DEC scroll
+
+  not_right:
+  RTS
 .endproc
 
 .segment "VECTORS"
 .addr nmi_handler, reset_handler, irq_handler
 
 .segment "RODATA"
-palettes:
+pallettes:
 ; Background Palettes
 .byte $0f, $00, $10, $20    ; black, dark gray, gray, white
 .byte $0f, $07, $17, $18    ; black, brown, light brown, puke green
@@ -146,31 +231,9 @@ palettes:
 .byte $0f, $1c, $2c, $3c    ; black, navy blue, light blue, sky blue
 .byte $0f, $06, $38, $17    ; black, dark red, cream, light brown
 
-tilemap:
-  .byte %00 ; $00 empty space
-  .byte %01 ; $30 wall block
-  .byte %10 ; $32 bush block
-  .byte %11 ; $33 goal block
-
 ;Stage 1 part 1
 nametable0:
   ;Packaged nametable. Every byte represents 4 2x2 tile blocks in a row
-  ; .byte %00000000,%00000000,%00000000,%00000000 
-  ; .byte %01010101,%01010101,%01010101,%01010101
-  ; .byte %01000000,%00000000,%01010101,%00000001
-  ; .byte %01000101,%01010000,%00010000,%10010001
-  ; .byte %01000000,%00100100,%00010000,%01000001
-  ; .byte %01000101,%00010100,%00010000,%01000101
-  ; .byte %01000001,%00000100,%10100000,%01100111
-  ; .byte %01010101,%01000000,%00010000,%01100011
-  ; .byte %01000000,%00000001,%00010100,%01010111
-  ; .byte %01000110,%01000001,%00010100,%00000001
-  ; .byte %01000100,%01010001,%00010101,%01010001
-  ; .byte %01000100,%01010001,%00010101,%01010001
-  ; .byte %01000101,%01101001,%00000001,%01011001
-  ; .byte %01110000,%00101001,%01010000,%00101001
-  ; .byte %01010101,%01010101,%01010101,%01010101
-
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
   .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
   .byte $30,$00,$00,$00,$00,$00,$00,$00,$30,$30,$30,$30,$00,$00,$00,$30
@@ -188,22 +251,7 @@ nametable0:
   .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
 nt0end: 
   nt0_length = nt0end-nametable0
-  ;Half-packaged. Every bit represents a 2x2 tile block
-  ;.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
-  ;.byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
-  ;.byte $30,$00,$00,$00,$00,$00,$00,$00,$30,$30,$30,$30,$00,$00,$00,$30
-  ;.byte $30,$00,$30,$30,$30,$30,$00,$00,$00,$30,$00,$00,$32,$30,$00,$30
-  ;.byte $30,$00,$00,$00,$00,$32,$30,$00,$00,$30,$00,$00,$30,$00,$00,$30
-  ;.byte $30,$00,$30,$30,$00,$30,$30,$00,$00,$30,$00,$00,$30,$00,$30,$30
-  ;.byte $30,$00,$00,$30,$00,$00,$30,$00,$32,$32,$00,$00,$30,$32,$30,$33
-  ;.byte $30,$30,$30,$30,$30,$00,$00,$00,$00,$30,$00,$00,$30,$32,$00,$33
-  ;.byte $30,$00,$00,$00,$00,$00,$00,$30,$00,$30,$30,$00,$30,$30,$30,$33
-  ;.byte $30,$00,$30,$32,$30,$00,$00,$30,$00,$30,$30,$00,$00,$00,$00,$30
-  ;.byte $30,$00,$30,$00,$30,$30,$00,$30,$00,$30,$30,$30,$30,$30,$00,$30
-  ;.byte $30,$00,$30,$00,$30,$30,$00,$30,$00,$30,$30,$30,$30,$30,$00,$30
-  ;.byte $30,$00,$30,$30,$30,$32,$32,$30,$00,$00,$00,$30,$30,$30,$32,$30
-  ;.byte $30,$33,$00,$00,$00,$32,$32,$30,$30,$30,$00,$00,$00,$32,$32,$30
-  ;.byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
+
 
 ;Stage 1 part 2
 nametable1:
@@ -222,39 +270,9 @@ nametable1:
   .byte $30,$00,$30,$00,$00,$32,$32,$00,$30,$00,$30,$32,$30,$30,$30,$30
   .byte $30,$00,$30,$00,$30,$30,$30,$00,$30,$00,$00,$32,$32,$32,$30,$30
   .byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
-  ; .byte %00000000,%00000000,%00000000,%00000000
-  ; .byte %01010101,%01010101,%01010101,%01010101
-  ; .byte %01000000,%00000101,%01010110,%10000011
-  ; .byte %01010101,%01101010,%00010110,%10000011
-  ; .byte %01001010,%00000101,%00010110,%10000011
-  ; .byte %01000101,%01000101,%00010101,%01000001
-  ; .byte %11100100,%00000101,%00001001,%01010001
-  ; .byte %11000000,%01010101,%00010100,%00101001
-  ; .byte %11100100,%00001010,%00010100,%00010001
-  ; .byte %01000101,%01001010,%00000100,%01010001
-  ; .byte %01000000,%01000001,%01000101,%01000001
-  ; .byte %01000100,%01000101,%01000010,%00000001
-  ; .byte %01000100,%00101000,%01000110,%01010101
-  ; .byte %01000100,%01010100,%01000010,%10100101
-  ; .byte %01010101,%01010101,%01010101,%01010101
+
 nt1end:
   nt1_length = nt1end-nametable1
-
-  ;.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
-  ;.byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
-  ;.byte $30,$00,$00,$00,$00,$00,$30,$30,$30,$30,$30,$32,$32,$00,$00,$33
-  ;.byte $30,$30,$30,$30,$30,$32,$32,$32,$00,$30,$30,$32,$32,$00,$00,$33
-  ;.byte $30,$00,$32,$32,$00,$00,$30,$30,$00,$30,$30,$32,$32,$00,$00,$33
-  ;.byte $30,$00,$30,$30,$30,$00,$30,$30,$00,$30,$30,$30,$30,$00,$00,$30
-  ;.byte $33,$32,$30,$00,$00,$00,$30,$30,$00,$00,$32,$30,$30,$30,$00,$30
-  ;.byte $33,$00,$00,$00,$30,$30,$30,$30,$00,$30,$30,$00,$00,$32,$32,$30
-  ;.byte $33,$32,$30,$00,$00,$00,$32,$32,$00,$30,$30,$00,$00,$30,$00,$30
-  ;.byte $30,$00,$30,$30,$30,$00,$32,$32,$00,$00,$30,$00,$30,$30,$00,$30
-  ;.byte $30,$00,$00,$00,$30,$00,$00,$30,$30,$00,$30,$30,$30,$00,$00,$30
-  ;.byte $30,$00,$30,$00,$30,$00,$30,$30,$30,$00,$00,$32,$00,$00,$00,$30
-  ;.byte $30,$00,$30,$00,$00,$32,$32,$00,$30,$00,$30,$32,$30,$30,$30,$30
-  ;.byte $30,$00,$30,$00,$30,$30,$30,$00,$30,$00,$00,$32,$32,$32,$30,$30
-  ;.byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
 
 ;Stage 1 attributes
 attributes1:
