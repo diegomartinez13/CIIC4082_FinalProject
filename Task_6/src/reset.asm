@@ -4,7 +4,7 @@
 .importzp player_x, player_y, player_walkstate, player_frame_counter, player_dir
 .importzp player_UL, player_UR, player_DL, player_DR
 .importzp controller
-.importzp nametable_select, level_select
+.importzp nametable_select, level_select, clock_frame_counter, clock_timmer
 
 .segment "CODE"
 .import main
@@ -41,7 +41,11 @@ vblankwait2:
 
 ; zero page variables initialization
   ;clock initialization
-  
+  LDA #$00
+  STA clock_frame_counter
+
+  LDA #$60
+  STA clock_timmer
 
   ;nametable select
   LDA #$00
@@ -60,13 +64,13 @@ vblankwait2:
   STA player_x
   LDA #$cF
   STA player_y
-  JMP player_direction
+  ; JMP player_direction
 
-  level2:
-  LDA #$10
-  STA player_x
-  LDA #$1F
-  STA player_y
+  ; level2:
+  ; LDA #$10
+  ; STA player_x
+  ; LDA #$1F
+  ; STA player_y
 
   player_direction:
   

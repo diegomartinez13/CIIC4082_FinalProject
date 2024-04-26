@@ -49,6 +49,8 @@ clock_num1: .res 1
 clock_num2: .res 1
 clock_num3: .res 1
 clock_timmer: .res 1
+clock_timmer_start: .res 1
+clock_timmer_end: .res 1
 clock_frame_counter: .res 1
 counter_level1: .res 1
 counter_level2: .res 1
@@ -189,6 +191,19 @@ vblankwait: ; wait for another vblank before continuing
     STA PPUCTRL
 
     JSR update_name_table_collision
+
+    LDA clock_timmer
+    CMP #$00
+    BEQ game_finished_by_gameover
+    LDA #$78
+    STA clock_timmer
+    game_finished_by_gameover:
+    LDA clock_timmer_end
+    CMP #$00
+    BNE update_sleep
+    inc clock_timmer_end
+    JMP update_sleep
+
 
     LDA finished
     CMP #$01
