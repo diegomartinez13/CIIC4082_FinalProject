@@ -4,7 +4,7 @@
 .importzp player_x, player_y, player_walkstate, player_frame_counter, player_dir
 .importzp player_UL, player_UR, player_DL, player_DR
 .importzp controller
-.importzp nametabe_select, level_select
+.importzp nametable_select, level_select
 
 .segment "CODE"
 .import main
@@ -41,8 +41,8 @@ vblankwait2:
 
 ; zero page variables initialization
   ;nametable select
-  LDA #$01
-  STA nametabe_select
+  LDA #$00
+  STA nametable_select
 
   ;level select
   LDA #$00

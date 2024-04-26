@@ -1,5 +1,6 @@
 .include "constants.inc"
 .include "header.inc"
+.import Unpack0, Unpack1, Unpack2, Unpack3
 
 .segment "ZEROPAGE"
 ;player1 variables 
@@ -23,9 +24,15 @@ temp_collision_x: .res 1
 temp_collision_y: .res 1
 temp_collision: .res 1
 
+;tiles
+temp: .res 1
+temp_1: .res 1
+temp_tile: .res 1
+temp_addr: .res 1
+
 
 ;nametable variables
-nametabe_select: .res 1
+nametable_select: .res 1
 level_select: .res 1
 
 ;scroll
@@ -33,11 +40,13 @@ scroll: .res 1
 ppuctrl_settings: .res 1
 
 sleeping: .res 1
+.exportzp temp, temp_1, temp_tile, temp_addr
 .exportzp player_x, player_y, player_dir, player_frame_counter, player_walkstate
 .exportzp player_UL, player_UR, player_DL, player_DR
 .exportzp controller
-.exportzp nametabe_select, level_select
+.exportzp nametable_select, level_select
 .exportzp scroll, ppuctrl_settings
+.export nametable0, nametable1, nametable2, nametable3, nt0_length, nt1_length, nt2_length, nt3_length
 
 .segment "CODE"
 .proc irq_handler ; Interrupt Request,
@@ -87,11 +96,12 @@ sleeping: .res 1
 
 .export main
 .proc main
-  LDA #$00  ; NES screen is 256 pixels wide (0-255)
+  LDA #0  ; NES screen is 256 pixels wide (0-255)
   STA scroll
 
   LDA #$00
-  STA nametabe_select
+  STA nametable_select
+  STA level_select
 
   LDX PPUSTATUS
   LDX #$3f
@@ -106,178 +116,25 @@ load_palettes:      ; Iterate until all palettes are loaded
   CPX #$20          ; Max 32 colors in palettes
   BNE load_palettes
 
-load_background:
-  ; Stage 1 Textures
-  LDA PPUSTATUS
-	LDA #$23
-	STA PPUADDR
-	LDA #$04
-	STA PPUADDR
-	LDX #$30       ; wall 1
-	STX PPUDATA
-  ; Stage 1 Textures
-  LDA PPUSTATUS
-	LDA #$23
-	STA PPUADDR
-	LDA #$24
-	STA PPUADDR
-	LDX #$30       ; wall 1
-	STX PPUDATA
-  ; Stage 1 Textures
-  LDA PPUSTATUS
-	LDA #$23
-	STA PPUADDR
-	LDA #$05
-	STA PPUADDR
-	LDX #$30       ; wall 1
-	STX PPUDATA
-  ; Stage 1 Textures
-  LDA PPUSTATUS
-	LDA #$23
-	STA PPUADDR
-	LDA #$25
-	STA PPUADDR
-	LDX #$30       ; wall 1
-	STX PPUDATA
+  load_stages:
+    LDA level_select
+    CMP #$00
+    BEQ stage1          ; Load Stage 1 if A is not pressed
+    JMP stage2          ; If pressed, load stage 2
 
+  stage1:
+    ; Load stage 1 part 1
+    LDX PPUSTATUS
+    JSR Unpack0   ; unpack nametable for part 1
+    JSR Unpack1   ; unpack nametable for part 2
+    JMP vblankwait
 
-
-  LDA PPUSTATUS
-	LDA #$22
-	STA PPUADDR
-	LDA #$84
-	STA PPUADDR
-	LDX #$31      ; wall 2
-	STX PPUDATA
-
-  LDA PPUSTATUS
-	LDA #$22
-	STA PPUADDR
-	LDA #$a4
-	STA PPUADDR
-	LDX #$31      ; wall 2
-	STX PPUDATA
-
-  LDA PPUSTATUS
-	LDA #$22
-	STA PPUADDR
-	LDA #$85
-	STA PPUADDR
-	LDX #$31      ; wall 2
-	STX PPUDATA
-
-  LDA PPUSTATUS
-	LDA #$22
-	STA PPUADDR
-	LDA #$a5
-	STA PPUADDR
-	LDX #$31      ; wall 2
-	STX PPUDATA
-
-  ; Stage 1 Attributes
-	LDA PPUSTATUS
-	LDA #$23
-	STA PPUADDR
-	LDA #$f1
-	STA PPUADDR
-	LDA #%01010101
-	STA PPUDATA
-
-  ; Stage 2 Attributes
-	LDA PPUSTATUS
-	LDA #$23
-	STA PPUADDR
-	LDA #$e9
-	STA PPUADDR
-	LDA #%11111111
-	STA PPUDATA
-
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-    ; Stage 1 Textures
-  LDA PPUSTATUS
-	LDA #$24
-	STA PPUADDR
-	LDA #$04
-	STA PPUADDR
-	LDX #$30       ; wall 1
-	STX PPUDATA
-  ; Stage 1 Textures
-  LDA PPUSTATUS
-	LDA #$24
-	STA PPUADDR
-	LDA #$24
-	STA PPUADDR
-	LDX #$30       ; wall 1
-	STX PPUDATA
-  ; Stage 1 Textures
-  LDA PPUSTATUS
-	LDA #$24
-	STA PPUADDR
-	LDA #$05
-	STA PPUADDR
-	LDX #$30       ; wall 1
-	STX PPUDATA
-  ; Stage 1 Textures
-  LDA PPUSTATUS
-	LDA #$24
-	STA PPUADDR
-	LDA #$25
-	STA PPUADDR
-	LDX #$30       ; wall 1
-	STX PPUDATA
-
-
-
-  LDA PPUSTATUS
-	LDA #$27
-	STA PPUADDR
-	LDA #$84
-	STA PPUADDR
-	LDX #$31      ; wall 2
-	STX PPUDATA
-
-  LDA PPUSTATUS
-	LDA #$27
-	STA PPUADDR
-	LDA #$a4
-	STA PPUADDR
-	LDX #$31      ; wall 2
-	STX PPUDATA
-
-  LDA PPUSTATUS
-	LDA #$27
-	STA PPUADDR
-	LDA #$85
-	STA PPUADDR
-	LDX #$31      ; wall 2
-	STX PPUDATA
-
-  LDA PPUSTATUS
-	LDA #$27
-	STA PPUADDR
-	LDA #$a5
-	STA PPUADDR
-	LDX #$31      ; wall 2
-	STX PPUDATA
-
-  ; Stage 1 Attributes
-	LDA PPUSTATUS
-	LDA #$27
-	STA PPUADDR
-	LDA #$f1
-	STA PPUADDR
-	LDA #%01010101
-	STA PPUDATA
-
-  ; Stage 2 Attributes
-	LDA PPUSTATUS
-	LDA #$27
-	STA PPUADDR
-	LDA #$e9
-	STA PPUADDR
-	LDA #%11111111
-	STA PPUDATA
+  stage2:
+    ; Load stage 2 part 1
+    LDX PPUSTATUS
+    JSR Unpack2   ; unpack nametable for part 1
+    JSR Unpack3   ; unpack nametable for part 2
+    JMP vblankwait
 
 vblankwait: ; wait for another vblank before continuing
   BIT PPUSTATUS
@@ -296,6 +153,9 @@ vblankwait: ; wait for another vblank before continuing
     JSR player_update
     JSR draw_player
 
+    ;update tiles after the DMA transfer
+    JSR update_level_select
+
   update_sleep:
     INC sleeping
     sleep:
@@ -303,6 +163,73 @@ vblankwait: ; wait for another vblank before continuing
       BNE sleep
 
       JMP mainloop
+.endproc
+
+.proc update_level_select
+  LDA controller       ; Load the controller state
+  AND #BTN_A           ; Mask all bits except for the A button
+  BEQ exit             ; If A button is not pressed, exit
+
+  LDA level_select       ; Load the current value of map_select
+  CMP #$00
+  BEQ prepare_stage2   ; If map_select is 0, prepare to switch to stage 2
+  LDA level_select       ; Load the current value of map_select
+  CMP #$01
+  BEQ prepare_stage1   ; If map_select is 1, prepare to switch to stage 1
+  JMP exit
+
+prepare_stage2:
+  JSR update_stage2    ; Call subroutine to update to stage 2
+  LDA #$01
+  STA level_select       ; Update map_select to indicate stage 2
+  JMP exit
+
+prepare_stage1:
+  JSR update_stage1    ; Call subroutine to update to stage 1
+  LDA #$00
+  STA level_select       ; Update map_select to indicate stage 1
+  JMP exit
+
+update_stage2:
+  LDA #$00
+  STA PPUCTRL
+  STA PPUMASK
+
+  JSR Unpack2          ; unpack nametable for part 1
+  JSR Unpack3          ; unpack nametable for part 2
+
+  LDA #$10
+  STA player_x
+  LDA #$1F
+  STA player_y
+
+  LDA #%10001000       ; turn on NMIs, sprites use first pattern table
+  STA PPUCTRL
+  LDA #%00011110       ; Turn on rendering, show sprites and background
+  STA PPUMASK
+  RTS                  ; Return from subroutine
+
+update_stage1:
+  LDA #$00
+  STA PPUCTRL
+  STA PPUMASK
+
+  JSR Unpack0          ; unpack nametable for part 1
+  JSR Unpack1          ; unpack nametable for part 2
+
+  LDA #$10
+  STA player_x
+  LDA #$cF
+  STA player_y
+
+  LDA #%10001000       ; turn on NMIs, sprites use first pattern table
+  STA PPUCTRL
+  LDA #%00011110       ; Turn on rendering, show sprites and background
+  STA PPUMASK
+  RTS                  ; Return from subroutine
+
+exit:
+  RTS                  ; Return from subroutine
 .endproc
 
 .proc player_update
@@ -318,17 +245,8 @@ vblankwait: ; wait for another vblank before continuing
   AND #BTN_LEFT ; mask out all but the left button
   BEQ check_right ; if the left button is not pressed, check the right button
   ; if the branch not taken, we are moving left
-  LDA player_x ; load player x pos into accumulator
-  SEC
-  SBC #$01 ; subtract 1 from player x
-  STA player_x ; store player x pos back into memory
+  DEC player_x ; move player left
 
-  BCC change_nametable0
-  JMP no_change_nametable0
-change_nametable0:
-  LDA #$00
-  STA nametabe_select
-no_change_nametable0:
   ;check for collision
   ;top left corner
   LDX player_x
@@ -357,10 +275,27 @@ not_colliding_top_left:
   BEQ check_right ; check the right button
 not_colliding_left:
   JSR player_move_left ; start animation moving left
-  ; LDA scroll
-  ; CMP #$FF
-  ; BEQ check_right
-  DEC scroll ; move the screen to the right
+
+  LDA player_x ; load player x pos into accumulator
+  CMP #$00 ; check if player is at the left edge of the screen
+  BEQ change_nametable0
+  JMP no_change_nametable0
+change_nametable0:
+  LDA #$FF
+  STA player_x
+
+  JSR player_move_left
+
+  DEC scroll
+
+  LDA #$01
+  STA nametable_select
+  JMP check_right
+
+no_change_nametable0:
+  JSR player_move_left
+  DEC scroll
+
 
 
 check_right:
@@ -368,18 +303,8 @@ check_right:
   AND #BTN_RIGHT
   BEQ check_up ; if the right button is not pressed, check the up button
   ; if the branch is not taken, we are moving right
-  LDA player_x
-  CLC
-  ADC #$01
-  STA player_x
-  
-  BCS change_nametable1
-  JMP no_change_nametable1
+  INC player_x ; move player right
 
-change_nametable1:
-  LDA #$01
-  STA nametabe_select
-no_change_nametable1:
   ;check for collision
   LDA player_x ; load player x pos into accumulator
   CLC
@@ -414,10 +339,27 @@ not_colliding_top_right:
   BEQ check_up ; check the up button
 not_colliding_right:
   JSR player_move_right
-  ; LDA scroll
-  ; CMP #$FF
-  ; BEQ check_up
-  INC scroll ; move the screen to the left
+  
+  LDA player_x
+  CMP #$F0 ; check if player is at the right edge of the screen
+  BEQ change_nametable1
+  JMP no_change_nametable1
+
+change_nametable1:
+  LDA #$00
+  STA player_x
+
+  JSR player_move_right
+
+  LDA #$00
+  STA nametable_select
+
+  INC scroll
+  JMP check_up
+
+no_change_nametable1:
+  JSR player_move_right
+  INC scroll
 
 
 check_up:
@@ -542,9 +484,9 @@ check_collision:
   BEQ check_collision_map2
 
   ; name table checker
-  LDA nametabe_select
+  LDA nametable_select
   CMP #$01
-  BEQ check_collision_nametable1
+  BNE check_collision_nametable1
 
   LDA nametable0, Y ; load byte from coalition map
   CMP #$30 ; check if player is colliding with wall
@@ -556,7 +498,7 @@ check_collision:
 
   check_collision_map2:
   ; name table checker
-  LDA nametabe_select
+  LDA nametable_select
   CMP #$01
   BEQ check_collision_nametable3
 
@@ -602,8 +544,8 @@ check_collision:
   LDA player_y
   STA $0200
   LDA player_x
-  ; SEC 
-  ; SBC scroll ; adjust for screen scroll
+  SEC 
+  SBC scroll ; adjust for screen scroll
   STA $0203
   ; top right tile (x + 8):
   LDA player_y
@@ -611,8 +553,8 @@ check_collision:
   LDA player_x
   CLC
   ADC #$08
-  ; SEC
-  ; SBC scroll ; adjust for screen scroll
+  SEC
+  SBC scroll ; adjust for screen scroll
   STA $0207
   ; bottom left tile (y + 8):
   LDA player_y
@@ -620,8 +562,8 @@ check_collision:
   ADC #$08
   STA $0208
   LDA player_x
-  ; SEC
-  ; SBC scroll ; adjust for screen scroll
+  SEC
+  SBC scroll ; adjust for screen scroll
   STA $020b
   ; bottom right tile (x + 8, y + 8)
   LDA player_y
@@ -631,8 +573,8 @@ check_collision:
   LDA player_x
   CLC
   ADC #$08
-  ; SEC
-  ; SBC scroll ; adjust for screen scroll
+  SEC
+  SBC scroll ; adjust for screen scroll
   STA $020f
 
 
