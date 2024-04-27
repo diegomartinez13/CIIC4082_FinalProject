@@ -44,16 +44,11 @@ ppuctrl_settings: .res 1
 sleeping: .res 1
 
 ; clock
-clock_num0: .res 1
-clock_num1: .res 1
-clock_num2: .res 1
-clock_num3: .res 1
-clock_timmer: .res 1
-clock_timmer_start: .res 1
-clock_timmer_end: .res 1
+hours: .res 1
+minutes: .res 1
+seconds: .res 1
+clock_timmer: .res 60
 clock_frame_counter: .res 1
-counter_level1: .res 1
-counter_level2: .res 1
 total_counter: .res 1
 
 ;ending variables
@@ -102,6 +97,20 @@ game_over: .res 1
   LDA #$00 ; Y scroll
   STA PPUSCROLL
 
+  ; Increment frame counter
+  INC clock_frame_counter
+  LDA clock_frame_counter
+  CMP #60
+  BNE skip_dec_sec
+  
+  ; Reset frame counter and decrement seconds
+  LDA #0
+  STA clock_frame_counter
+  LDA clock_timmer
+  BEQ skip_dec_sec ; If already at 0, skip decrement
+  DEC clock_timmer
+
+  skip_dec_sec:
   ;all done
   LDA #$00
   STA sleeping
@@ -121,8 +130,12 @@ game_over: .res 1
 .proc main
   ;initialize variables
   ;initialize clock
-  LDA #$75
+  LDA #$20 ; 32 seconds
   STA clock_timmer
+
+  LDA #$00
+  STA clock_frame_counter
+  STA total_counter
 
 
   LDA #0  ; NES screen is 256 pixels wide (0-255)
@@ -131,10 +144,7 @@ game_over: .res 1
   LDA #$00
   STA nametable_select
   STA level_select
-  STA clock_frame_counter
-  STA counter_level1
-  STA counter_level2
-  STA total_counter
+
 
   LDX PPUSTATUS
   LDX #$3f
@@ -192,19 +202,16 @@ vblankwait: ; wait for another vblank before continuing
 
     JSR update_name_table_collision
 
+    ;update clock
+    JSR draw_clock_counter
+
     LDA clock_timmer
-    CMP #$00
-    BEQ game_finished_by_gameover
-    LDA #$78
-    STA clock_timmer
+    BEQ game_finished_by_gameover  ; If seconds are 0, handle game over or transition
+    JMP game_finished_check
     game_finished_by_gameover:
-    LDA clock_timmer_end
-    CMP #$00
-    BNE update_sleep
-    inc clock_timmer_end
-    JMP update_sleep
+    JSR handel_game_over
 
-
+    game_finished_check:
     LDA finished
     CMP #$01
     BEQ loop_finished_game
@@ -221,6 +228,114 @@ vblankwait: ; wait for another vblank before continuing
       JMP mainloop
 .endproc
 
+.proc handel_game_over
+  ; Increment total seconds counter
+  LDA total_counter
+  CLC
+  ADC clock_timmer
+  STA total_counter
+
+  LDA #$01
+  STA game_over
+  LDA #$01
+  STA finished
+  LDA #$00
+  STA PPUCTRL
+  STA PPUMASK
+
+  LDA nametable_select
+  CMP #$00
+  BEQ scroll_gameover_right
+  JMP scroll_gameover_left
+
+  scroll_gameover_right:
+  LDA #$FF
+  STA scroll
+  JMP lets_draw_gameover
+
+  scroll_gameover_left:
+  LDA #$00
+  STA scroll
+
+  lets_draw_gameover:
+  JSR draw_finished
+
+  LDA #%10001000       ; turn on NMIs, sprites use first pattern table
+  STA PPUCTRL
+  LDA #%00001110       ; Turn on rendering, show sprites and background
+  STA PPUMASK
+  RTS
+.endproc
+
+.proc draw_clock_counter
+draw_clock_counter:
+; Convert total seconds to hours, minutes, and seconds
+  LDA clock_timmer  ; Load total seconds into accumulator
+
+  ; Calculate hours
+  LDX #$00  ; Clear X register
+  SEC       ; Set carry flag
+  SBC #$0E10 ; Subtract 3600 (seconds in an hour)
+  BCC hourLoopDone  ; Exit loop if carry flag is clear
+  INX       ; Increment hours
+  BNE hourLoopDone  ; Exit loop if not zero (should never happen)
+  hourLoopDone:
+  STX hours  ; Store hours in memory
+
+  ; Calculate remaining minutes
+  LDX #$00  ; Clear X register
+  SEC       ; Set carry flag
+  SBC #$3C ; Subtract 60 (seconds in a minute)
+  BCC minLoopDone   ; Exit loop if carry flag is clear
+  INX       ; Increment minutes
+  BNE minLoopDone   ; Exit loop if not zero (should never happen)
+  minLoopDone:
+  STX minutes  ; Store minutes in memory
+
+  ; Remaining seconds are the seconds
+  STA seconds  ; Store remaining seconds in memory
+
+  ; Display the clock on the screen
+  ; Example: Display in the format HH:MM:SS
+  LDX #$00
+  LDA hours
+  JSR draw_digit
+  LDA #$3A  ; ASCII code for colon ':'
+  JSR draw_char
+  INX
+  LDA minutes
+  JSR draw_digit
+  LDA #$3A  ; ASCII code for colon ':'
+  JSR draw_char
+  INX
+  LDA seconds
+  JSR draw_digit
+
+  RTS
+
+draw_digit:
+  ; Draw a single digit (0-9) on the screen
+  ; Input: A register should contain the digit (0-9)
+  ; Output: None
+  ; X register should contain the position on the screen to draw the digit
+  CMP #$0A  ; Check if A >= 10
+  BCC validDigit  ; Branch if A < 10
+  RTS  ; Return if A >= 10
+
+  validDigit:
+  ADC #$30  ; Convert digit to ASCII
+  STA $2000,X  ; Store digit in the screen memory
+  RTS
+
+draw_char:
+  ; Draw a single character on the screen
+  ; Input: A register should contain the ASCII code of the character to draw
+  ; Output: None
+  ; X register should contain the position on the screen to draw the character
+  STA $2000,X  ; Store character in the screen memory
+  RTS
+
+.endproc
 .proc update_level_select
   ; LDA controller       ; Load the controller state
   ; AND #BTN_A           ; Mask all bits except for the A button
@@ -1253,12 +1368,12 @@ nametable3:
 ; game finished screen
 nametable_gameover:
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
-  .byte $03,$03,$03,$00,$03,$03,$03,$00,$03,$00,$00,$03,$00,$03,$03,$03 
-  .byte $03,$00,$00,$00,$03,$00,$03,$00,$03,$03,$03,$03,$00,$03,$00,$00 
-  .byte $03,$00,$00,$00,$03,$00,$03,$00,$03,$00,$00,$03,$00,$03,$03,$03 
-  .byte $03,$03,$03,$00,$03,$03,$03,$00,$03,$00,$00,$03,$00,$03,$03,$03 
-  .byte $03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$00,$03,$00,$03,$00,$00 
-  .byte $03,$03,$03,$00,$03,$00,$03,$00,$03,$00,$00,$03,$00,$03,$03,$03 
+  .byte $03,$03,$03,$03,$00,$03,$03,$03,$00,$03,$00,$03,$00,$03,$03,$03 
+  .byte $03,$00,$00,$00,$00,$03,$00,$03,$00,$03,$03,$03,$00,$03,$00,$00 
+  .byte $03,$00,$00,$00,$00,$03,$00,$03,$00,$03,$00,$03,$00,$03,$03,$03 
+  .byte $03,$00,$03,$03,$00,$03,$03,$03,$00,$03,$00,$03,$00,$03,$03,$03 
+  .byte $03,$00,$00,$03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$00 
+  .byte $03,$03,$03,$03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$03,$03,$03 
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 
   .byte $03,$03,$03,$00,$03,$00,$03,$00,$03,$03,$03,$00,$03,$03,$03,$00 
   .byte $03,$00,$03,$00,$03,$00,$03,$00,$03,$00,$00,$00,$03,$00,$03,$00 
